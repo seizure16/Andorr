@@ -77,7 +77,8 @@ private struct SidebarView: View {
     @AppStorage("showTags") private var showTags = true
     @FocusState private var searchFocused: Bool
     @State private var showingWarnings = false
-    @State private var collapsedSubjects: Set<String> = []
+    @State private var folderExpansion = FolderExpansionState()
+    @State private var filterContext = NoteQuery()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -116,14 +117,14 @@ private struct SidebarView: View {
                 }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
             }
 
-            if !store.visibleSubjects.isEmpty {
+            if !store.sidebarTree.folders.isEmpty {
                 HStack {
                     Text("Dossiers").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                     Spacer()
                     Button {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-                            if allSubjectsCollapsed { collapsedSubjects.removeAll() }
-                            else { collapsedSubjects.formUnion(store.notes.map(\.subject)) }
+                            folderExpansion.setCollapsed(allSubjectsCollapsed ? [] : store.sidebarTree.folderPaths,
+                                                         filtering: store.noteQuery.isActive)
                         }
                     } label: {
                         Image(systemName: allSubjectsCollapsed ? "chevron.down" : "chevron.up")
@@ -139,76 +140,32 @@ private struct SidebarView: View {
                 .padding(.horizontal, 20).padding(.top, 8)
             }
 
-            List {
-                ForEach(store.visibleSubjects, id: \.self) { subject in
-                    Section(isExpanded: expansion(for: subject)) {
-                        ForEach(store.visibleNotes.filter { $0.subject == subject }) { note in
-                            Button { store.requestSelection(note.id) } label: {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    HStack(spacing: 5) {
-                                        Text(note.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary).lineLimit(2)
-                                        if note.issue != nil { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(note.issue ?? "") }
-                                    }
-                                    if showStatuses || (showTags && !note.tags.isEmpty) {
-                                        HStack(spacing: 7) {
-                                            if showStatuses { StatusBadge(status: note.status) }
-                                            if showTags {
-                                                Text(note.tags.prefix(3).map { "#\($0)" }.joined(separator: "  "))
-                                                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                                                if note.tags.count > 3 { Text("+\(note.tags.count - 3)").font(.system(size: 10)).foregroundStyle(.secondary) }
-                                            }
-                                        }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 5)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .selectionDisabled()
-                            .listRowBackground(RoundedRectangle(cornerRadius: 7)
-                                .fill(store.selectedNoteID == note.id ? Palette.selection : .clear))
-                            .accessibilityElement(children: .combine)
-                            .accessibilityAddTraits(store.selectedNoteID == note.id ? [.isSelected] : [])
-                            .contextMenu {
-                                ForEach(ReviewStatus.allCases) { status in
-                                    Button(status.title) {
-                                        Task {
-                                            await store.select(note.id)
-                                            if store.draft?.id == note.id { store.setStatus(status) }
-                                        }
-                                    }.disabled(note.issue != nil || store.isBusy)
-                                }
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(sidebarRows) { row in
+                        Group {
+                            switch row {
+                            case .folder(let path, let name, let depth):
+                                folderRow(path: path, name: name, depth: depth)
+                            case .note(let note, let depth):
+                                noteRow(note, depth: depth)
                             }
                         }
-                    } header: {
-                        Button {
-                            let expanded = expansion(for: subject)
-                            expanded.wrappedValue.toggle()
-                        } label: {
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Image(systemName: subject.isEmpty ? "doc.text" : "folder.fill")
-                                    .foregroundStyle(subject.isEmpty ? Color.secondary : Palette.accent)
-                                Text(subject.isEmpty ? "Général" : subject.replacingOccurrences(of: "/", with: " › "))
-                                    .foregroundStyle(.primary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .font(.system(size: 14, weight: .semibold))
-                            .textCase(nil)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 12).padding(.bottom, 6)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityValue(collapsedSubjects.contains(subject) ? "Replié" : "Déplié")
-                        .accessibilityAddTraits(.isHeader)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: -5)),
+                            removal: .opacity
+                        ))
                     }
                 }
+                .padding(.horizontal, 12).padding(.vertical, 6)
             }
-            .listStyle(.sidebar).scrollContentBackground(.hidden)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: collapsedPaths)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .focusable()
+            .focusEffectDisabled()
             .onMoveCommand(perform: moveSelection)
             .overlay {
-                if store.visibleNotes.isEmpty && store.root != nil {
+                if sidebarRows.isEmpty && store.root != nil {
                     VStack(spacing: 8) {
                         Text(store.notes.isEmpty ? "Aucune note pour le moment" : "Aucune note correspondante").font(.callout)
                         if !store.notes.isEmpty {
@@ -233,31 +190,126 @@ private struct SidebarView: View {
             }.font(.system(size: 12)).foregroundStyle(.secondary).padding(16).help(store.root?.path ?? "")
         }
         .background(Palette.sidebar)
-        .onChange(of: store.root) { _, _ in collapsedSubjects.removeAll() }
+        .onChange(of: store.root) { _, _ in folderExpansion = FolderExpansionState() }
+        .onChange(of: store.noteQuery) { _, query in
+            folderExpansion.resetFiltered()
+            filterContext = query
+        }
         .onReceive(NotificationCenter.default.publisher(for: .focusNoteSearch)) { _ in searchFocused = true }
     }
 
-    private var allSubjectsCollapsed: Bool {
-        let subjects = Set(store.notes.map(\.subject))
-        return !subjects.isEmpty && subjects.isSubset(of: collapsedSubjects)
+    private var collapsedPaths: Set<String> {
+        // A changed query must reveal matches in its very first rendered frame.
+        if store.noteQuery.isActive && filterContext != store.noteQuery { return [] }
+        return folderExpansion.collapsedPaths(filtering: store.noteQuery.isActive)
     }
 
-    private func expansion(for subject: String) -> Binding<Bool> {
-        Binding(
-            get: { !collapsedSubjects.contains(subject) },
-            set: { expanded in
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-                    if expanded { collapsedSubjects.remove(subject) }
-                    else { collapsedSubjects.insert(subject) }
+    private var sidebarRows: [NoteTreeRow] { store.sidebarTree.rows(collapsed: collapsedPaths) }
+
+    private var allSubjectsCollapsed: Bool {
+        let paths = Set(store.sidebarTree.folders.map(\.id))
+        return !paths.isEmpty && paths.isSubset(of: collapsedPaths)
+    }
+
+    private func folderRow(path: String, name: String, depth: Int) -> some View {
+        let expanded = !collapsedPaths.contains(path)
+        return Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                folderExpansion.toggle(path, filtering: store.noteQuery.isActive)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                    .foregroundStyle(.secondary).frame(width: 10)
+                Image(systemName: "folder")
+                    .font(.system(size: 13)).foregroundStyle(Palette.accent).frame(width: 14)
+                Text(name).font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary).lineLimit(1).truncationMode(.middle)
+            }
+            .padding(.leading, CGFloat(depth) * 16)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .leading) { indentationGuides(depth: depth) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(path.replacingOccurrences(of: "/", with: " › "))
+        .accessibilityLabel(name)
+        .accessibilityValue(expanded ? "Déplié" : "Replié")
+        .accessibilityHint(expanded ? "Replier le dossier" : "Déplier le dossier")
+    }
+
+    private func noteRow(_ note: Note, depth: Int) -> some View {
+        Button { store.requestSelection(note.id) } label: {
+            HStack(alignment: .top, spacing: 6) {
+                Color.clear.frame(width: 10, height: 1).accessibilityHidden(true)
+                Image(systemName: "doc.text").font(.system(size: 12))
+                    .foregroundStyle(.tertiary).frame(width: 14).padding(.top, 2)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 5) {
+                        Text(note.title).font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary).lineLimit(2)
+                        if note.issue != nil {
+                            Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(note.issue ?? "")
+                        }
+                    }
+                    if showStatuses || (showTags && !note.tags.isEmpty) {
+                        HStack(spacing: 7) {
+                            if showStatuses { StatusBadge(status: note.status) }
+                            if showTags {
+                                Text(note.tags.prefix(3).map { "#\($0)" }.joined(separator: "  "))
+                                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                                if note.tags.count > 3 {
+                                    Text("+\(note.tags.count - 3)").font(.system(size: 10)).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
                 }
             }
-        )
+            .padding(.leading, CGFloat(depth) * 16)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .leading) { indentationGuides(depth: depth) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(RoundedRectangle(cornerRadius: 7)
+            .fill(store.selectedNoteID == note.id ? Palette.selection : .clear))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(store.selectedNoteID == note.id ? [.isSelected] : [])
+        .contextMenu {
+            ForEach(ReviewStatus.allCases) { status in
+                Button(status.title) {
+                    Task {
+                        await store.select(note.id)
+                        if store.draft?.id == note.id { store.setStatus(status) }
+                    }
+                }.disabled(note.issue != nil || store.isBusy)
+            }
+        }
+    }
+
+    private func indentationGuides(depth: Int) -> some View {
+        HStack(spacing: 15) {
+            ForEach(0..<depth, id: \.self) { _ in
+                Rectangle().fill(.primary.opacity(0.12))
+                    .frame(width: 1).frame(maxHeight: .infinity)
+            }
+        }
+        .padding(.leading, 5)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func moveSelection(_ direction: MoveCommandDirection) {
         guard direction == .up || direction == .down else { return }
-        let available = store.visibleSubjects.filter { !collapsedSubjects.contains($0) }
-            .flatMap { subject in store.visibleNotes.filter { $0.subject == subject } }
+        let available = sidebarRows.compactMap { row -> Note? in
+            if case .note(let note, _) = row { return note }
+            return nil
+        }
         guard !available.isEmpty else { return }
         let current = available.firstIndex { $0.id == store.selectedNoteID }
         let next = current.map { min(max($0 + (direction == .down ? 1 : -1), 0), available.count - 1) }
@@ -436,7 +488,7 @@ private struct EditorView: View {
                 else { Image(systemName: store.saveError == nil ? "checkmark" : "exclamationmark.triangle").font(.system(size: 10)) }
                 Text(store.saveLabel)
                 Spacer()
-                Text(note.subject.isEmpty ? "Général" : note.subject.replacingOccurrences(of: "/", with: " › ")).lineLimit(1)
+                Text(note.subject.isEmpty ? "Racine du dossier" : note.subject.replacingOccurrences(of: "/", with: " › ")).lineLimit(1)
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 32).padding(.vertical, 11)
         }
         .background(Palette.paper)
@@ -468,7 +520,7 @@ private struct NewNoteView: View {
             Text("Nouvelle note").font(.title2.weight(.semibold))
             TextField("Titre de la note", text: $title).textFieldStyle(.roundedBorder).focused($titleFocused)
             Picker("Matière", selection: $subject) {
-                Text("Général · racine du dossier").tag("")
+                Text("Racine du dossier").tag("")
                 ForEach(store.subjects, id: \.self) { Text($0.replacingOccurrences(of: "/", with: " › ")).tag($0) }
             }
             HStack {

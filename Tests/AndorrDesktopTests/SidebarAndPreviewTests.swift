@@ -12,11 +12,29 @@ final class SidebarAndPreviewTests: XCTestCase {
             Note(id: "Algorithmique/Tris.md", title: "Tris", subject: "Algorithmique", body: ""),
             Note(id: "Algorithmique/Graphes.md", title: "Graphes", subject: "Algorithmique", body: "")
         ]
-        XCTAssertEqual(store.visibleSubjects, ["Algorithmique", "Réseaux", ""])
+        XCTAssertEqual(store.sidebarTree.folders.map(\.id), ["Algorithmique", "Réseaux"])
+        XCTAssertEqual(store.sidebarTree.rootNotes.map(\.id), ["Accueil.md"])
         store.search = "Routage"
-        XCTAssertEqual(store.visibleSubjects, ["Réseaux"])
+        XCTAssertEqual(store.sidebarTree.folders.map(\.id), ["Réseaux"])
         store.search = "Accueil"
-        XCTAssertEqual(store.visibleSubjects, [""])
+        XCTAssertTrue(store.sidebarTree.folders.isEmpty)
+        XCTAssertEqual(store.sidebarTree.rootNotes.map(\.id), ["Accueil.md"])
+    }
+
+    @MainActor
+    func testFilteringKeepsAncestorFoldersAndTemporarilyHidesEmptyFolders() {
+        let store = WorkspaceStore()
+        store.subjects = ["Maths", "Maths/Cours", "Maths/TD", "Vide"]
+        store.notes = [
+            Note(id: "Maths/Cours/A.md", title: "A", subject: "Maths/Cours", body: "", status: .toReview),
+            Note(id: "Maths/TD/B.md", title: "B", subject: "Maths/TD", body: "", status: .reviewed)
+        ]
+        XCTAssertTrue(store.sidebarTree.folderPaths.contains("Vide"))
+        store.onlyToReview = true
+        XCTAssertEqual(store.sidebarTree.folderPaths, ["Maths", "Maths/Cours"])
+        store.onlyToReview = false
+        XCTAssertTrue(store.sidebarTree.folderPaths.contains("Vide"))
+        XCTAssertTrue(store.sidebarTree.folderPaths.contains("Maths/TD"))
     }
 
     func testPreviewAllowsSyntheticHTMLLoadAndLocalAnchors() {

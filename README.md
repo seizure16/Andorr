@@ -20,7 +20,7 @@ Ce script compile les mêmes sources via Swift Package Manager, assemble le bund
 
 Le projet active l’App Sandbox et l’accès en lecture/écriture aux dossiers sélectionnés. L’application conserve un security-scoped bookmark pour rouvrir le dernier dossier au lancement suivant. Si cet accès expire ou si le dossier n’existe plus, le sélectionner à nouveau.
 
-La version 0.1.1 rend les en-têtes de matières plus visibles (icône de dossier, texte plus grand et contrasté), classe les matières avant **Général** et corrige le chargement de l’aperçu. Après remplacement de l’application, la quitter puis la relancer pour appliquer les nouvelles autorisations WebKit.
+L’explorateur affiche une arborescence de dossiers imbriqués, avec indentation, dossiers avant les notes et notes racine en bas de la liste. Les lignes de dossiers sont cliquables et le bouton global permet de tout replier ou déplier avec animation. Après remplacement de l’application, la quitter puis la relancer pour appliquer les nouvelles autorisations WebKit.
 
 ## Premier essai
 
@@ -37,13 +37,13 @@ Essayer ensuite l’édition, l’aperçu, les tags, la recherche sans accents e
 
 ## Fonctions du premier jet
 
-- Ouverture récursive de dossiers, notes `.md` et matières imbriquées (affichées avec leur chemin).
-- Notes à la racine regroupées sous **Général**, sans déplacement sur disque.
+- Explorateur hiérarchique : dossiers imbriqués, dossiers vides, notes `.md` et tri naturel à chaque niveau.
+- Notes à la racine affichées directement après les dossiers, sans groupe artificiel ni déplacement sur disque.
 - Création d’une note dans une matière existante ou à la racine (**⌘N**).
 - Édition Markdown brut, aperçu, sauvegarde après 500 ms d’inactivité.
 - Statuts et tags enregistrés immédiatement ; affichage indépendant dans la barre latérale.
 - Recherche dans le titre (nom de fichier) et le corps, insensible à la casse et aux accents.
-- Filtre transversal **À revoir**, filtre par tag et compteurs globaux.
+- Filtre transversal **À revoir**, filtre par tag et compteurs globaux. Les filtres conservent les dossiers parents des résultats et les ouvrent automatiquement ; leur fermeture temporaire ne modifie pas les dossiers ouverts ou repliés avant le filtre.
 - Vidage des modifications en attente avant navigation, fermeture et sortie.
 - Vérification des changements externes avant écriture ; brouillon conservé en cas de conflit.
 - Actualisation au retour dans l’application et avec **⇧⌘R**.
@@ -105,7 +105,7 @@ Ou exécuter `bash Scripts/check.sh`. Les tests sont deux cibles Swift Package, 
 
 Les tests couvrent notamment le jalon statut → sauvegarde → nouvelle instance du stockage → filtre, les notes sans YAML, la conservation du corps et des propriétés inconnues, les fins de ligne, les métadonnées invalides, les conflits externes, les doublons et les liens symboliques. Le bookmark, la fermeture de fenêtre et le confort visuel nécessitent également un essai dans l’application native sandboxée.
 
-État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **24 tests passent** (17 pour le cœur et 7 pour la sélection des notes, l’ordre des matières et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
+État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **32 tests passent** (24 pour le cœur, dont l’arborescence et l’état de dépliage, et 8 pour la sélection des notes, les filtres et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
 
 `xcodebuild` s’arrête dans cet environnement avec le code 134 avant la compilation ; le projet et les autorisations ont été vérifiés avec `plutil`. Le service de contrôle de l’interface ne démarre pas non plus. L’essai visuel, le bookmark et le parcours de relance dans l’application sandboxée restent à vérifier sur le bureau macOS.
 

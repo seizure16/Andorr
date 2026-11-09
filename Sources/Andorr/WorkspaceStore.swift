@@ -35,15 +35,12 @@ final class WorkspaceStore {
 
     var isDirty: Bool { revision != savedRevision }
     var canEdit: Bool { draft != nil && draft?.issue == nil && !isBusy }
+    var noteQuery: NoteQuery { NoteQuery(text: search, onlyToReview: onlyToReview, tag: selectedTag) }
     var visibleNotes: [Note] {
-        let query = NoteQuery(text: search, onlyToReview: onlyToReview, tag: selectedTag)
-        return notes.filter(query.matches)
+        notes.filter(noteQuery.matches)
     }
-    var visibleSubjects: [String] {
-        Array(Set(visibleNotes.map(\.subject))).sorted {
-            if $0.isEmpty != $1.isEmpty { return !$0.isEmpty }
-            return $0.localizedStandardCompare($1) == .orderedAscending
-        }
+    var sidebarTree: NoteTree {
+        NoteTree(notes: visibleNotes, directories: noteQuery.isActive ? [] : subjects)
     }
     var allTags: [String] { Array(Set(notes.flatMap(\.tags))).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
     var reviewCount: Int { notes.filter { $0.status == .toReview }.count }

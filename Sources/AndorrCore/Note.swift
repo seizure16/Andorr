@@ -31,13 +31,17 @@ public struct Note: Identifiable, Sendable, Equatable {
     }
 }
 
-public struct NoteQuery: Sendable {
+public struct NoteQuery: Sendable, Equatable {
     public var text: String
     public var onlyToReview: Bool
     public var tag: String?
 
     public init(text: String = "", onlyToReview: Bool = false, tag: String? = nil) {
         self.text = text; self.onlyToReview = onlyToReview; self.tag = tag
+    }
+
+    public var isActive: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || onlyToReview || tag != nil
     }
 
     public func matches(_ note: Note) -> Bool {
