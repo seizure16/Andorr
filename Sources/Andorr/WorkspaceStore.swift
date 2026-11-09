@@ -8,6 +8,7 @@ final class WorkspaceStore {
     var notes: [Note] = []
     var subjects: [String] = []
     var draft: Note?
+    private(set) var selectedNoteID: String?
     var search = ""
     var onlyToReview = false
     var selectedTag: String?
@@ -27,6 +28,10 @@ final class WorkspaceStore {
     @ObservationIgnored private var debounce: Task<Void, Never>?
     @ObservationIgnored private var saveTask: (id: UUID, task: Task<Bool, Never>)?
     @ObservationIgnored private var hasRestored = false
+    @ObservationIgnored private var selectionTask: Task<Void, Never>?
+    @ObservationIgnored private var isSelecting = false
+
+    init(repository: MarkdownRepository? = nil) { self.repository = repository }
 
     var isDirty: Bool { revision != savedRevision }
     var canEdit: Bool { draft != nil && draft?.issue == nil && !isBusy }
@@ -80,18 +85,49 @@ final class WorkspaceStore {
             let index = try await next.scan()
             if !restoring { try access.adopt(url) }
             repository = next; root = url; notes = index.notes; subjects = index.subjects; warnings = index.warnings
-            draft = nil; expectedBytes = Data(); revision = 0; savedRevision = 0; saveError = nil
+            draft = nil; selectedNoteID = nil; expectedBytes = Data(); revision = 0; savedRevision = 0; saveError = nil
             search = ""; onlyToReview = false; selectedTag = nil
             if let first = notes.first { install(try await next.load(id: first.id)) }
         } catch { errorMessage = error.localizedDescription }
     }
 
     func select(_ id: String) async {
-        guard !isBusy, id != draft?.id, let repository else { return }
-        isBusy = true; defer { isBusy = false }
-        guard await flush() else { return }
-        do { install(try await repository.load(id: id)) }
-        catch { errorMessage = error.localizedDescription }
+        if let task = requestSelection(id) { await task.value }
+    }
+
+    /// List must receive its new selection synchronously, before any IO awaits.
+    @discardableResult
+    func requestSelection(_ id: String) -> Task<Void, Never>? {
+        guard repository != nil, !isBusy || isSelecting,
+              notes.contains(where: { $0.id == id }) else { return nil }
+        selectedNoteID = id
+        if let selectionTask { return selectionTask }
+        guard id != draft?.id else { return nil }
+        isSelecting = true; isBusy = true
+        let worker = Task<Void, Never> { [weak self] in
+            await self?.loadSelection()
+        }
+        selectionTask = worker
+        return worker
+    }
+
+    private func loadSelection() async {
+        defer { selectionTask = nil; isSelecting = false; isBusy = false }
+        guard let repository else { selectedNoteID = draft?.id; return }
+        guard await flush() else { selectedNoteID = draft?.id; return }
+        while let id = selectedNoteID, id != draft?.id {
+            do {
+                let loaded = try await repository.load(id: id)
+                // A newer click supersedes this result, without moving the highlight back.
+                guard selectedNoteID == id else { continue }
+                install(loaded)
+            } catch {
+                guard selectedNoteID == id else { continue }
+                selectedNoteID = draft?.id
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
     }
 
     func setBody(_ value: String) { mutate(immediate: false) { $0.body = value } }
@@ -187,13 +223,13 @@ final class WorkspaceStore {
             notes = index.notes; subjects = index.subjects; warnings = index.warnings
             if let id = draft?.id {
                 if notes.contains(where: { $0.id == id }) { install(try await repository.load(id: id)) }
-                else { draft = nil }
+                else { draft = nil; selectedNoteID = nil }
             }
         } catch { errorMessage = error.localizedDescription }
     }
 
     private func install(_ loaded: LoadedNote) {
-        debounce?.cancel(); draft = loaded.note; expectedBytes = loaded.bytes
+        debounce?.cancel(); draft = loaded.note; selectedNoteID = loaded.note.id; expectedBytes = loaded.bytes
         revision = 0; savedRevision = 0; saveError = nil
     }
 

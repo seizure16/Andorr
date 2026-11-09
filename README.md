@@ -81,7 +81,7 @@ Cette protection réduit le risque d’écrasement par un autre éditeur ; elle 
 Sources/Andorr/             Interface SwiftUI, état observable, cycle de vie, accès au dossier
 Sources/AndorrCore/         Modèles, recherche, codec YAML, stockage sur acteur, rendu Markdown
 Tests/AndorrCoreTests/      Persistance, format, conflits, isolation des chemins et recherche
-Tests/AndorrDesktopTests/   Ordre des matières et règles de navigation de l’aperçu
+Tests/AndorrDesktopTests/   Sélection des notes, ordre des matières et navigation de l’aperçu
 Resources/                 Autorisations sandbox
 Examples/Cours S3/          Sept notes de démonstration
 ```
@@ -105,7 +105,7 @@ Ou exécuter `bash Scripts/check.sh`. Les tests sont deux cibles Swift Package, 
 
 Les tests couvrent notamment le jalon statut → sauvegarde → nouvelle instance du stockage → filtre, les notes sans YAML, la conservation du corps et des propriétés inconnues, les fins de ligne, les métadonnées invalides, les conflits externes, les doublons et les liens symboliques. Le bookmark, la fermeture de fenêtre et le confort visuel nécessitent également un essai dans l’application native sandboxée.
 
-État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **21 tests passent** (17 pour le cœur et 4 pour l’ordre des matières et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
+État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **24 tests passent** (17 pour le cœur et 7 pour la sélection des notes, l’ordre des matières et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
 
 `xcodebuild` s’arrête dans cet environnement avec le code 134 avant la compilation ; le projet et les autorisations ont été vérifiés avec `plutil`. Le service de contrôle de l’interface ne démarre pas non plus. L’essai visuel, le bookmark et le parcours de relance dans l’application sandboxée restent à vérifier sur le bureau macOS.
 
