@@ -413,6 +413,7 @@ private struct EditorModeButtonStyle: ButtonStyle {
 private struct EditorView: View {
     @Bindable var store: WorkspaceStore
     let note: Note
+    @AppStorage("editorZoom") private var editorZoom = EditorZoom.defaultScale
     @State private var tagInput = ""
     @State private var addingTag = false
     @State private var confirmReload = false
@@ -474,10 +475,11 @@ private struct EditorView: View {
             }
 
             if store.preview && note.issue == nil {
-                MarkdownPreview(source: note.body)
+                MarkdownPreview(source: note.body, zoom: EditorZoom.normalized(editorZoom))
             } else {
                 TextEditor(text: Binding(get: { store.draft?.body ?? "" }, set: store.setBody))
-                    .font(.system(size: 14, design: .monospaced)).lineSpacing(6)
+                    .font(.system(size: 14 * CGFloat(EditorZoom.normalized(editorZoom)), design: .monospaced))
+                    .lineSpacing(6 * CGFloat(EditorZoom.normalized(editorZoom)))
                     .scrollContentBackground(.hidden).padding(.horizontal, 27).padding(.vertical, 18)
                     .disabled(!store.canEdit).focused($editorFocused)
                     .accessibilityLabel("Contenu Markdown")

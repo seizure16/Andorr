@@ -7,6 +7,7 @@ struct AndorrApp: App {
     @State private var store = WorkspaceStore()
     @AppStorage("showStatuses") private var showStatuses = true
     @AppStorage("showTags") private var showTags = true
+    @AppStorage("editorZoom") private var editorZoom = EditorZoom.defaultScale
 
     var body: some Scene {
         Window("Andorr", id: "main") {
@@ -31,11 +32,35 @@ struct AndorrApp: App {
                 Toggle("Afficher les tags", isOn: $showTags)
                 Divider()
                 Toggle("Aperçu Markdown", isOn: $store.preview).keyboardShortcut("p", modifiers: [.command, .shift]).disabled(store.draft == nil || store.draft?.issue != nil)
+                Divider()
+                Button("Agrandir le texte") { editorZoom = EditorZoom.adjusted(editorZoom, by: 0.1) }
+                    .keyboardShortcut("+", modifiers: .command)
+                    .disabled(store.draft == nil || EditorZoom.normalized(editorZoom) >= EditorZoom.maximum)
+                Button("Réduire le texte") { editorZoom = EditorZoom.adjusted(editorZoom, by: -0.1) }
+                    .keyboardShortcut("-", modifiers: .command)
+                    .disabled(store.draft == nil || EditorZoom.normalized(editorZoom) <= EditorZoom.minimum)
+                Button("Taille du texte par défaut") { editorZoom = EditorZoom.defaultScale }
+                    .keyboardShortcut("0", modifiers: .command).disabled(store.draft == nil)
             }
             CommandGroup(after: .textEditing) {
                 Button("Rechercher dans les notes") { NotificationCenter.default.post(name: .focusNoteSearch, object: nil) }.keyboardShortcut("f")
             }
         }
+    }
+}
+
+enum EditorZoom {
+    static let defaultScale = 1.0
+    static let minimum = 0.7
+    static let maximum = 2.0
+
+    static func normalized(_ scale: Double) -> Double {
+        guard scale.isFinite else { return defaultScale }
+        return min(max(scale, minimum), maximum)
+    }
+
+    static func adjusted(_ scale: Double, by step: Double) -> Double {
+        normalized(((normalized(scale) + step) * 10).rounded() / 10)
     }
 }
 

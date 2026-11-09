@@ -4,13 +4,14 @@ import AndorrCore
 
 struct MarkdownPreview: View {
     let source: String
+    var zoom = EditorZoom.defaultScale
     @State private var html = ""
     @State private var loadError: String?
     @State private var retryID = UUID()
 
     var body: some View {
         ZStack {
-            PreviewWebView(html: html, loadError: $loadError, retryID: retryID)
+            PreviewWebView(html: html, loadError: $loadError, retryID: retryID, zoom: zoom)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             if let loadError {
                 VStack(spacing: 12) {
@@ -38,6 +39,7 @@ private struct PreviewWebView: NSViewRepresentable {
     let html: String
     @Binding var loadError: String?
     let retryID: UUID
+    let zoom: Double
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
     func makeNSView(context: Context) -> WKWebView {
@@ -51,6 +53,9 @@ private struct PreviewWebView: NSViewRepresentable {
     }
     func updateNSView(_ view: WKWebView, context: Context) {
         context.coordinator.parent = self
+        // Apply zoom independently of HTML changes: preserve the loaded page
+        // and its scroll position instead of regenerating the preview.
+        view.pageZoom = CGFloat(EditorZoom.normalized(zoom))
         guard !html.isEmpty,
               context.coordinator.html != html || context.coordinator.retryID != retryID else { return }
         context.coordinator.html = html
