@@ -116,6 +116,29 @@ private struct SidebarView: View {
                 }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
             }
 
+            if !store.visibleSubjects.isEmpty {
+                HStack {
+                    Text("Dossiers").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                            if allSubjectsCollapsed { collapsedSubjects.removeAll() }
+                            else { collapsedSubjects.formUnion(store.notes.map(\.subject)) }
+                        }
+                    } label: {
+                        Image(systemName: allSubjectsCollapsed ? "chevron.down" : "chevron.up")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(allSubjectsCollapsed ? "Tout déplier" : "Tout replier")
+                    .accessibilityLabel(allSubjectsCollapsed ? "Déplier tous les dossiers" : "Replier tous les dossiers")
+                }
+                .padding(.horizontal, 20).padding(.top, 8)
+            }
+
             List {
                 ForEach(store.visibleSubjects, id: \.self) { subject in
                     Section(isExpanded: expansion(for: subject)) {
@@ -212,6 +235,11 @@ private struct SidebarView: View {
         .background(Palette.sidebar)
         .onChange(of: store.root) { _, _ in collapsedSubjects.removeAll() }
         .onReceive(NotificationCenter.default.publisher(for: .focusNoteSearch)) { _ in searchFocused = true }
+    }
+
+    private var allSubjectsCollapsed: Bool {
+        let subjects = Set(store.notes.map(\.subject))
+        return !subjects.isEmpty && subjects.isSubset(of: collapsedSubjects)
     }
 
     private func expansion(for subject: String) -> Binding<Bool> {
