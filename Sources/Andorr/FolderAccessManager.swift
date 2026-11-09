@@ -5,9 +5,12 @@ final class FolderAccessManager {
     private var activeURL: URL?
     private var hasScope = false
     private let key = "workspaceBookmark"
+    private let preferences: UserDefaults
+
+    init(preferences: UserDefaults = .standard) { self.preferences = preferences }
 
     func restore() throws -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        guard let data = preferences.data(forKey: key) else { return nil }
         var stale = false
         let url = try URL(resolvingBookmarkData: data, options: [.withSecurityScope],
                           relativeTo: nil, bookmarkDataIsStale: &stale)
@@ -28,7 +31,7 @@ final class FolderAccessManager {
 
     private func remember(_ url: URL) throws {
         let data = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
-        UserDefaults.standard.set(data, forKey: key)
+        preferences.set(data, forKey: key)
     }
 
     func release() {

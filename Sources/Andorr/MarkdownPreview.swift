@@ -3,6 +3,8 @@ import WebKit
 import AndorrCore
 
 struct MarkdownPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: Palette { Palette(colorScheme: colorScheme) }
     let source: String
     var zoom = EditorZoom.defaultScale
     @State private var html = ""
@@ -20,7 +22,7 @@ struct MarkdownPreview: View {
                     Text(loadError).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     Button("Réessayer") { self.loadError = nil; retryID = UUID() }
                 }
-                .padding(32).frame(maxWidth: .infinity, maxHeight: .infinity).background(Palette.paper)
+                .padding(32).frame(maxWidth: .infinity, maxHeight: .infinity).background(palette.paper)
             } else if html.isEmpty {
                 ProgressView("Préparation de l’aperçu…")
             }
@@ -40,6 +42,7 @@ private struct PreviewWebView: NSViewRepresentable {
     @Binding var loadError: String?
     let retryID: UUID
     let zoom: Double
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
     func makeNSView(context: Context) -> WKWebView {
@@ -53,6 +56,7 @@ private struct PreviewWebView: NSViewRepresentable {
     }
     func updateNSView(_ view: WKWebView, context: Context) {
         context.coordinator.parent = self
+        view.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
         // Apply zoom independently of HTML changes: preserve the loaded page
         // and its scroll position instead of regenerating the preview.
         view.pageZoom = CGFloat(EditorZoom.normalized(zoom))

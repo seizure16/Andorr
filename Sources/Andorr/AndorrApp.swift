@@ -5,13 +5,17 @@ import AppKit
 struct AndorrApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var store = WorkspaceStore()
-    @AppStorage("showStatuses") private var showStatuses = true
-    @AppStorage("showTags") private var showTags = true
-    @AppStorage("editorZoom") private var editorZoom = EditorZoom.defaultScale
+    @StateObject private var systemAppearance = SystemAppearanceObserver()
+    @AppStorage(PreferenceKeys.showStatuses) private var showStatuses = true
+    @AppStorage(PreferenceKeys.showTags) private var showTags = true
+    @AppStorage(PreferenceKeys.editorZoom) private var editorZoom = EditorZoom.defaultScale
+    @AppStorage(PreferenceKeys.appearance) private var appearance = AppAppearance.system
 
     var body: some Scene {
         Window("Andorr", id: "main") {
             ContentView(store: store)
+                .preferredColorScheme(appearance.colorScheme)
+                .environment(\.colorScheme, appearance.resolvedColorScheme(system: systemAppearance.colorScheme))
                 .onAppear { delegate.store = store }
         }
         .defaultSize(width: 1120, height: 740)
@@ -45,6 +49,12 @@ struct AndorrApp: App {
             CommandGroup(after: .textEditing) {
                 Button("Rechercher dans les notes") { NotificationCenter.default.post(name: .focusNoteSearch, object: nil) }.keyboardShortcut("f")
             }
+        }
+
+        Settings {
+            SettingsView(store: store, systemColorScheme: systemAppearance.colorScheme)
+                .preferredColorScheme(appearance.colorScheme)
+                .environment(\.colorScheme, appearance.resolvedColorScheme(system: systemAppearance.colorScheme))
         }
     }
 }

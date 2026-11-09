@@ -18,7 +18,7 @@ bash Scripts/build-app.sh
 
 Ce script compile les mêmes sources via Swift Package Manager, assemble le bundle macOS et le signe localement avec les mêmes autorisations sandbox. Il ne publie et n’installe rien.
 
-Le projet active l’App Sandbox et l’accès en lecture/écriture aux dossiers sélectionnés. L’application conserve un security-scoped bookmark pour rouvrir le dernier dossier au lancement suivant. Si cet accès expire ou si le dossier n’existe plus, le sélectionner à nouveau.
+Le projet active l’App Sandbox et l’accès en lecture/écriture aux dossiers sélectionnés. L’application conserve un security-scoped bookmark pour rouvrir le dernier dossier au lancement suivant si cette option est activée (par défaut). Si cet accès expire ou si le dossier n’existe plus, le sélectionner à nouveau.
 
 L’explorateur affiche une arborescence de dossiers imbriqués, avec indentation, dossiers avant les notes et notes racine en bas de la liste. Les lignes de dossiers sont cliquables et le bouton global permet de tout replier ou déplier avec animation. Après remplacement de l’application, la quitter puis la relancer pour appliquer les nouvelles autorisations WebKit.
 
@@ -48,6 +48,16 @@ Essayer ensuite l’édition, l’aperçu, les tags, la recherche sans accents e
 - Vérification des changements externes avant écriture ; brouillon conservé en cas de conflit.
 - Actualisation au retour dans l’application et avec **⇧⌘R**.
 - États vides et erreurs de lecture/sauvegarde visibles.
+
+## Réglages
+
+Ouvrir **Andorr → Réglages…**, utiliser **⌘,** ou cliquer sur l’engrenage en bas de la barre latérale. Les trois groupes sont empilés dans une fenêtre native :
+
+- **Apparence** : thème système, clair ou sombre ; affichage des statuts et des tags.
+- **Éditeur** : taille du texte de 70 à 200 %, aperçu de la taille et réinitialisation ; mode d’ouverture des notes existantes.
+- **Dossier de cours** : réouverture du dernier dossier au lancement ; nom, chemin et changement du dossier actuel.
+
+Les préférences sont mémorisées automatiquement. La visibilité des métadonnées reste synchronisée avec le menu Affichage ; la taille du texte reste synchronisée avec **⌘+**, **⌘−** et **⌘0** et s’applique à l’éditeur et à l’aperçu. Le thème s’applique aux deux fenêtres et au rendu Markdown. Le mode choisi s’applique à la prochaine note ouverte ; les nouvelles notes s’ouvrent en édition et une actualisation conserve le mode choisi pour la note courante. Désactiver la réouverture prend effet au prochain lancement. Changer de dossier passe par la sauvegarde habituelle du brouillon.
 
 ## Format des fichiers
 
@@ -105,7 +115,7 @@ Ou exécuter `bash Scripts/check.sh`. Les tests sont deux cibles Swift Package, 
 
 Les tests couvrent notamment le jalon statut → sauvegarde → nouvelle instance du stockage → filtre, les notes sans YAML, la conservation du corps et des propriétés inconnues, les fins de ligne, les métadonnées invalides, les conflits externes, les doublons et les liens symboliques. Le bookmark, la fermeture de fenêtre et le confort visuel nécessitent également un essai dans l’application native sandboxée.
 
-État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **32 tests passent** (24 pour le cœur, dont l’arborescence et l’état de dépliage, et 8 pour la sélection des notes, les filtres et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
+État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **37 tests passent** (24 pour le cœur et 13 pour la sélection des notes, les filtres, les préférences, les couleurs clair/sombre et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
 
 `xcodebuild` s’arrête dans cet environnement avec le code 134 avant la compilation ; le projet et les autorisations ont été vérifiés avec `plutil`. Le service de contrôle de l’interface ne démarre pas non plus. L’essai visuel, le bookmark et le parcours de relance dans l’application sandboxée restent à vérifier sur le bureau macOS.
 

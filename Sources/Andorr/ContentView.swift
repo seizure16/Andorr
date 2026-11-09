@@ -2,19 +2,29 @@ import SwiftUI
 import AppKit
 import AndorrCore
 
-enum Palette {
-    static let sidebar = Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        ? NSColor(calibratedRed: 0.105, green: 0.11, blue: 0.115, alpha: 1)
-        : NSColor(calibratedRed: 0.953, green: 0.949, blue: 0.933, alpha: 1) })
-    static let paper = Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        ? NSColor(calibratedRed: 0.125, green: 0.129, blue: 0.133, alpha: 1) : .white })
+struct Palette {
+    let colorScheme: ColorScheme
+
+    // Resolve from SwiftUI's current scheme, not a cached dynamic NSColor.
+    var sidebar: Color {
+        colorScheme == .dark
+            ? Color(red: 0.105, green: 0.11, blue: 0.115)
+            : Color(red: 0.953, green: 0.949, blue: 0.933)
+    }
+    var paper: Color {
+        colorScheme == .dark ? Color(red: 0.125, green: 0.129, blue: 0.133) : .white
+    }
+    var selection: Color {
+        colorScheme == .dark
+            ? Color(red: 0.20, green: 0.22, blue: 0.24)
+            : Color(red: 0.87, green: 0.88, blue: 0.88)
+    }
     static let accent = Color(red: 0.30, green: 0.38, blue: 0.67)
-    static let selection = Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        ? NSColor(calibratedRed: 0.20, green: 0.22, blue: 0.24, alpha: 1)
-        : NSColor(calibratedRed: 0.87, green: 0.88, blue: 0.88, alpha: 1) })
 }
 
 struct ContentView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: Palette { Palette(colorScheme: colorScheme) }
     @Bindable var store: WorkspaceStore
     @Environment(\.scenePhase) private var scenePhase
 
@@ -39,7 +49,7 @@ struct ContentView: View {
                         Button("Créer une note…") { store.showingNewNote = true }.buttonStyle(.borderedProminent)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity).background(Palette.paper)
+                .frame(maxWidth: .infinity, maxHeight: .infinity).background(palette.paper)
             }
         }
         .tint(Palette.accent)
@@ -72,9 +82,11 @@ struct ContentView: View {
 }
 
 private struct SidebarView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: Palette { Palette(colorScheme: colorScheme) }
     @Bindable var store: WorkspaceStore
-    @AppStorage("showStatuses") private var showStatuses = true
-    @AppStorage("showTags") private var showTags = true
+    @AppStorage(PreferenceKeys.showStatuses) private var showStatuses = true
+    @AppStorage(PreferenceKeys.showTags) private var showTags = true
     @FocusState private var searchFocused: Bool
     @State private var showingWarnings = false
     @State private var folderExpansion = FolderExpansionState()
@@ -187,9 +199,15 @@ private struct SidebarView: View {
                             ScrollView { Text(store.warnings.joined(separator: "\n\n")).textSelection(.enabled).padding() }.frame(width: 350, height: 220)
                         }
                 }
+                SettingsLink {
+                    Image(systemName: "gearshape").frame(width: 24, height: 24).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Réglages (⌘,)")
+                .accessibilityLabel("Ouvrir les réglages")
             }.font(.system(size: 12)).foregroundStyle(.secondary).padding(16).help(store.root?.path ?? "")
         }
-        .background(Palette.sidebar)
+        .background(palette.sidebar)
         .onChange(of: store.root) { _, _ in folderExpansion = FolderExpansionState() }
         .onChange(of: store.noteQuery) { _, query in
             folderExpansion.resetFiltered()
@@ -277,7 +295,7 @@ private struct SidebarView: View {
         }
         .buttonStyle(.plain)
         .background(RoundedRectangle(cornerRadius: 7)
-            .fill(store.selectedNoteID == note.id ? Palette.selection : .clear))
+            .fill(store.selectedNoteID == note.id ? palette.selection : .clear))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(store.selectedNoteID == note.id ? [.isSelected] : [])
         .contextMenu {
@@ -326,7 +344,7 @@ private struct SidebarView: View {
             }.font(.system(size: 13)).padding(.horizontal, 12).frame(height: 34)
                 .contentShape(Rectangle())
         }.buttonStyle(.plain).foregroundStyle(.primary)
-            .background(active ? Palette.selection : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .background(active ? palette.selection : .clear, in: RoundedRectangle(cornerRadius: 7))
             .padding(.horizontal, 8).padding(.bottom, 2)
             .accessibilityAddTraits(active ? [.isSelected] : [])
     }
@@ -354,6 +372,8 @@ struct StatusBadge: View {
 }
 
 private struct EditorModeSwitch: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: Palette { Palette(colorScheme: colorScheme) }
     @Binding var preview: Bool
     @Namespace private var selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -365,7 +385,7 @@ private struct EditorModeSwitch: View {
             option("Aperçu", icon: "eye", previewMode: true)
         }
         .padding(3)
-        .background(Palette.sidebar, in: RoundedRectangle(cornerRadius: 7))
+        .background(palette.sidebar, in: RoundedRectangle(cornerRadius: 7))
         .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85), value: preview)
         .opacity(isEnabled ? 1 : 0.45)
         .fixedSize()
@@ -383,7 +403,7 @@ private struct EditorModeSwitch: View {
                 .frame(width: 34, height: 30)
                 .background {
                     if selected {
-                        RoundedRectangle(cornerRadius: 5).fill(Palette.paper)
+                        RoundedRectangle(cornerRadius: 5).fill(palette.paper)
                             .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
                             .matchedGeometryEffect(id: "editorMode", in: selection)
                     }
@@ -411,9 +431,11 @@ private struct EditorModeButtonStyle: ButtonStyle {
 }
 
 private struct EditorView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: Palette { Palette(colorScheme: colorScheme) }
     @Bindable var store: WorkspaceStore
     let note: Note
-    @AppStorage("editorZoom") private var editorZoom = EditorZoom.defaultScale
+    @AppStorage(PreferenceKeys.editorZoom) private var editorZoom = EditorZoom.defaultScale
     @State private var tagInput = ""
     @State private var addingTag = false
     @State private var confirmReload = false
@@ -446,7 +468,7 @@ private struct EditorView: View {
                                 Button { store.setTags(note.tags.filter { $0 != tag }) } label: { Image(systemName: "xmark").font(.system(size: 8, weight: .semibold)) }
                                     .buttonStyle(.plain).disabled(!store.canEdit).accessibilityLabel("Retirer le tag \(tag)")
                             }.font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.vertical, 5)
-                                .background(Palette.sidebar, in: RoundedRectangle(cornerRadius: 6))
+                                .background(palette.sidebar, in: RoundedRectangle(cornerRadius: 6))
                         }
                         Button { addingTag = true } label: { Label("Tag", systemImage: "plus").font(.system(size: 12)) }
                             .buttonStyle(.plain).foregroundStyle(.secondary).padding(5).disabled(!store.canEdit)
@@ -493,7 +515,7 @@ private struct EditorView: View {
                 Text(note.subject.isEmpty ? "Racine du dossier" : note.subject.replacingOccurrences(of: "/", with: " › ")).lineLimit(1)
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 32).padding(.vertical, 11)
         }
-        .background(Palette.paper)
+        .background(palette.paper)
         .confirmationDialog("Recharger et abandonner le brouillon ?", isPresented: $confirmReload) {
             Button("Recharger le fichier", role: .destructive) { Task { await store.reloadDiscardingDraft() } }
             Button("Annuler", role: .cancel) {}

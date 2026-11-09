@@ -21,7 +21,8 @@ final class WorkspaceStore {
     var preview = false
 
     @ObservationIgnored private var repository: MarkdownRepository?
-    @ObservationIgnored private let access = FolderAccessManager()
+    @ObservationIgnored private let access: FolderAccessManager
+    @ObservationIgnored private let preferences: UserDefaults
     @ObservationIgnored private var expectedBytes = Data()
     @ObservationIgnored private var revision = 0
     @ObservationIgnored private var savedRevision = 0
@@ -31,7 +32,11 @@ final class WorkspaceStore {
     @ObservationIgnored private var selectionTask: Task<Void, Never>?
     @ObservationIgnored private var isSelecting = false
 
-    init(repository: MarkdownRepository? = nil) { self.repository = repository }
+    init(repository: MarkdownRepository? = nil, preferences: UserDefaults = .standard) {
+        self.repository = repository
+        self.preferences = preferences
+        self.access = FolderAccessManager(preferences: preferences)
+    }
 
     var isDirty: Bool { revision != savedRevision }
     var canEdit: Bool { draft != nil && draft?.issue == nil && !isBusy }
@@ -53,6 +58,7 @@ final class WorkspaceStore {
 
     func restore() async {
         guard !hasRestored else { return }; hasRestored = true
+        guard preferences.object(forKey: PreferenceKeys.reopenFolder) as? Bool ?? true else { return }
         do {
             if let url = try access.restore() { await open(url, restoring: true) }
         } catch { errorMessage = "L’accès au dernier dossier n’a pas pu être restauré. Ouvrez-le à nouveau.\n\n\(error.localizedDescription)" }
@@ -84,7 +90,7 @@ final class WorkspaceStore {
             repository = next; root = url; notes = index.notes; subjects = index.subjects; warnings = index.warnings
             draft = nil; selectedNoteID = nil; expectedBytes = Data(); revision = 0; savedRevision = 0; saveError = nil
             search = ""; onlyToReview = false; selectedTag = nil
-            if let first = notes.first { install(try await next.load(id: first.id)) }
+            if let first = notes.first { install(try await next.load(id: first.id), applyOpeningMode: true) }
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -117,7 +123,7 @@ final class WorkspaceStore {
                 let loaded = try await repository.load(id: id)
                 // A newer click supersedes this result, without moving the highlight back.
                 guard selectedNoteID == id else { continue }
-                install(loaded)
+                install(loaded, applyOpeningMode: true)
             } catch {
                 guard selectedNoteID == id else { continue }
                 selectedNoteID = draft?.id
@@ -225,9 +231,12 @@ final class WorkspaceStore {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    private func install(_ loaded: LoadedNote) {
+    private func install(_ loaded: LoadedNote, applyOpeningMode: Bool = false) {
         debounce?.cancel(); draft = loaded.note; selectedNoteID = loaded.note.id; expectedBytes = loaded.bytes
         revision = 0; savedRevision = 0; saveError = nil
+        if applyOpeningMode {
+            preview = loaded.note.issue == nil && NoteOpeningMode.preferred(in: preferences) == .preview
+        }
     }
 
     private func updateIndex(_ note: Note) {

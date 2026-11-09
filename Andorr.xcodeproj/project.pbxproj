@@ -1,5 +1,7 @@
 // !$*UTF8*$!
 { archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+F557E7613C522594926CEB0D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
+EF8431AC2777E551414F7BB6 = { isa = PBXBuildFile; fileRef = F557E7613C522594926CEB0D; };
 CA9FD595A91CC4277ACBD091 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AndorrApp.swift"; sourceTree = "<group>"; };
 91F5CA7D9E4B776E09F7FAB4 = { isa = PBXBuildFile; fileRef = CA9FD595A91CC4277ACBD091; };
 16260C585190F1B74295BB31 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
@@ -12,9 +14,9 @@ EA6E2AA0F9230AA52BA6DA12 = { isa = PBXFileReference; lastKnownFileType = sourcec
 4B6AA3F0C7A3655FD543DAA9 = { isa = PBXBuildFile; fileRef = 01A708E0FEC1643A1F6B4D9A; };
 38A007151ABE87CC01A5B6E9 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = Andorr.app; sourceTree = BUILT_PRODUCTS_DIR; };
 325F10A6957A34D66CB8C0E4 = { isa = PBXGroup; children = (4D820FADAFBC7A1FCACC4F07, BFE00B156DCFC34C4751A6E5); sourceTree = "<group>"; };
-4D820FADAFBC7A1FCACC4F07 = { isa = PBXGroup; children = (CA9FD595A91CC4277ACBD091, 16260C585190F1B74295BB31, EA6E2AA0F9230AA52BA6DA12, 8782953E3D8419C6980B26E0, 01A708E0FEC1643A1F6B4D9A); path = Sources/Andorr; sourceTree = "<group>"; };
+4D820FADAFBC7A1FCACC4F07 = { isa = PBXGroup; children = (F557E7613C522594926CEB0D, CA9FD595A91CC4277ACBD091, 16260C585190F1B74295BB31, EA6E2AA0F9230AA52BA6DA12, 8782953E3D8419C6980B26E0, 01A708E0FEC1643A1F6B4D9A); path = Sources/Andorr; sourceTree = "<group>"; };
 BFE00B156DCFC34C4751A6E5 = { isa = PBXGroup; children = (38A007151ABE87CC01A5B6E9); name = Products; sourceTree = "<group>"; };
-BCE16DD0260827ECF338C787 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (91F5CA7D9E4B776E09F7FAB4, 2A8F5CFFD87674FB2B9862C3, 23862556728687FE048589D8, 99AB373810EA7EBF8A26E052, 4B6AA3F0C7A3655FD543DAA9); runOnlyForDeploymentPostprocessing = 0; };
+BCE16DD0260827ECF338C787 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (EF8431AC2777E551414F7BB6, 91F5CA7D9E4B776E09F7FAB4, 2A8F5CFFD87674FB2B9862C3, 23862556728687FE048589D8, 99AB373810EA7EBF8A26E052, 4B6AA3F0C7A3655FD543DAA9); runOnlyForDeploymentPostprocessing = 0; };
 1C25D3719CB905525B1D275B = { isa = PBXBuildFile; productRef = E23EF4DFD8458EBA92BF9064; };
 7561BFB015D8F536760CB671 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (1C25D3719CB905525B1D275B); runOnlyForDeploymentPostprocessing = 0; };
 0189424A5A60FED329FA868E = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
