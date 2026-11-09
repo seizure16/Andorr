@@ -1,0 +1,31 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+CA9FD595A91CC4277ACBD091 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AndorrApp.swift"; sourceTree = "<group>"; };
+91F5CA7D9E4B776E09F7FAB4 = { isa = PBXBuildFile; fileRef = CA9FD595A91CC4277ACBD091; };
+16260C585190F1B74295BB31 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
+2A8F5CFFD87674FB2B9862C3 = { isa = PBXBuildFile; fileRef = 16260C585190F1B74295BB31; };
+EA6E2AA0F9230AA52BA6DA12 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FolderAccessManager.swift"; sourceTree = "<group>"; };
+23862556728687FE048589D8 = { isa = PBXBuildFile; fileRef = EA6E2AA0F9230AA52BA6DA12; };
+8782953E3D8419C6980B26E0 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MarkdownPreview.swift"; sourceTree = "<group>"; };
+99AB373810EA7EBF8A26E052 = { isa = PBXBuildFile; fileRef = 8782953E3D8419C6980B26E0; };
+01A708E0FEC1643A1F6B4D9A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkspaceStore.swift"; sourceTree = "<group>"; };
+4B6AA3F0C7A3655FD543DAA9 = { isa = PBXBuildFile; fileRef = 01A708E0FEC1643A1F6B4D9A; };
+38A007151ABE87CC01A5B6E9 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = Andorr.app; sourceTree = BUILT_PRODUCTS_DIR; };
+325F10A6957A34D66CB8C0E4 = { isa = PBXGroup; children = (4D820FADAFBC7A1FCACC4F07, BFE00B156DCFC34C4751A6E5); sourceTree = "<group>"; };
+4D820FADAFBC7A1FCACC4F07 = { isa = PBXGroup; children = (CA9FD595A91CC4277ACBD091, 16260C585190F1B74295BB31, EA6E2AA0F9230AA52BA6DA12, 8782953E3D8419C6980B26E0, 01A708E0FEC1643A1F6B4D9A); path = Sources/Andorr; sourceTree = "<group>"; };
+BFE00B156DCFC34C4751A6E5 = { isa = PBXGroup; children = (38A007151ABE87CC01A5B6E9); name = Products; sourceTree = "<group>"; };
+BCE16DD0260827ECF338C787 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (91F5CA7D9E4B776E09F7FAB4, 2A8F5CFFD87674FB2B9862C3, 23862556728687FE048589D8, 99AB373810EA7EBF8A26E052, 4B6AA3F0C7A3655FD543DAA9); runOnlyForDeploymentPostprocessing = 0; };
+1C25D3719CB905525B1D275B = { isa = PBXBuildFile; productRef = E23EF4DFD8458EBA92BF9064; };
+7561BFB015D8F536760CB671 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (1C25D3719CB905525B1D275B); runOnlyForDeploymentPostprocessing = 0; };
+0189424A5A60FED329FA868E = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+8F5B626E483F79FC4BC78D05 = { isa = XCLocalSwiftPackageReference; relativePath = .; };
+E23EF4DFD8458EBA92BF9064 = { isa = XCSwiftPackageProductDependency; package = 8F5B626E483F79FC4BC78D05; productName = AndorrCore; };
+0E8A3AD980EC179856012B7E = { isa = PBXNativeTarget; buildConfigurationList = C57128001CE614BF8549D6BB; buildPhases = (BCE16DD0260827ECF338C787, 7561BFB015D8F536760CB671, 0189424A5A60FED329FA868E); buildRules = (); dependencies = (); name = Andorr; packageProductDependencies = (E23EF4DFD8458EBA92BF9064); productName = Andorr; productReference = 38A007151ABE87CC01A5B6E9; productType = "com.apple.product-type.application"; };
+98F54143AB4E86B28C3AFEE0 = { isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 1600; }; buildConfigurationList = 862894B703A6DEDF96A9DD6C; compatibilityVersion = "Xcode 14.0"; developmentRegion = fr; hasScannedForEncodings = 0; knownRegions = (fr, en, Base); mainGroup = 325F10A6957A34D66CB8C0E4; packageReferences = (8F5B626E483F79FC4BC78D05); productRefGroup = BFE00B156DCFC34C4751A6E5; projectDirPath = ""; projectRoot = ""; targets = (0E8A3AD980EC179856012B7E); };
+89E1FD6268CC0F221A2BE178 = { isa = XCBuildConfiguration; buildSettings = { CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; DEBUG_INFORMATION_FORMAT = dwarf; }; name = Debug; };
+E6DE6C99132752C914FEF632 = { isa = XCBuildConfiguration; buildSettings = { CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; }; name = Release; };
+862894B703A6DEDF96A9DD6C = { isa = XCConfigurationList; buildConfigurations = (89E1FD6268CC0F221A2BE178, E6DE6C99132752C914FEF632); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+7082CC0B6FC1282FCEABD07A = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = org.andorr.notes; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Andorr; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSPrincipalClass = NSApplication; INFOPLIST_KEY_NSHighResolutionCapable = YES; MARKETING_VERSION = 0.1.1; CURRENT_PROJECT_VERSION = 2; CODE_SIGN_ENTITLEMENTS = Resources/Andorr.entitlements; CODE_SIGN_STYLE = Manual; CODE_SIGN_IDENTITY = "-"; ENABLE_APP_SANDBOX = YES; ENABLE_HARDENED_RUNTIME = YES; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; DEBUG_INFORMATION_FORMAT = dwarf; }; name = Debug; };
+639A7CA24D39909E713B47F7 = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = org.andorr.notes; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Andorr; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSPrincipalClass = NSApplication; INFOPLIST_KEY_NSHighResolutionCapable = YES; MARKETING_VERSION = 0.1.1; CURRENT_PROJECT_VERSION = 2; CODE_SIGN_ENTITLEMENTS = Resources/Andorr.entitlements; CODE_SIGN_STYLE = Manual; CODE_SIGN_IDENTITY = "-"; ENABLE_APP_SANDBOX = YES; ENABLE_HARDENED_RUNTIME = YES; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; }; name = Release; };
+C57128001CE614BF8549D6BB = { isa = XCConfigurationList; buildConfigurations = (7082CC0B6FC1282FCEABD07A, 639A7CA24D39909E713B47F7); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+}; rootObject = 98F54143AB4E86B28C3AFEE0; }
