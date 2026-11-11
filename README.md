@@ -28,7 +28,7 @@ Utiliser une **copie** de `Examples/Cours S3` si vous souhaitez conserver les ex
 
 1. Ouvrir le dossier `Cours S3` dans l’application (**⌘O**).
 2. Sélectionner **Graphes et parcours**, une note sans en-tête YAML.
-3. Passer son statut à **À revoir**. Attendre **Enregistré automatiquement**.
+3. Passer son statut à **À revoir**. La sauvegarde est automatique ; **⌘S** permet aussi de la déclencher immédiatement.
 4. Activer **À revoir** dans la barre latérale : la note reste visible dans sa matière.
 5. Quitter avec **⌘Q**, puis relancer. Le dossier est restauré ; activer le filtre et sélectionner la note pour vérifier son statut.
 6. Vérifier dans le fichier `.md` que `status: to_review` a été ajouté et que le corps du cours a été conservé.
@@ -40,14 +40,23 @@ Essayer ensuite l’édition, l’aperçu, les tags, la recherche sans accents e
 - Explorateur hiérarchique : dossiers imbriqués, dossiers vides, notes `.md` et tri naturel à chaque niveau.
 - Notes à la racine affichées directement après les dossiers, sans groupe artificiel ni déplacement sur disque.
 - Création d’une note dans une matière existante ou à la racine (**⌘N**).
-- Édition Markdown brut, aperçu, sauvegarde après 500 ms d’inactivité.
+- Édition Markdown brut avec NSTextView, premier aperçu en direct et aperçu de lecture ; sauvegarde après 500 ms d’inactivité.
 - Statuts et tags enregistrés immédiatement ; affichage indépendant dans la barre latérale.
 - Recherche dans le titre (nom de fichier) et le corps, insensible à la casse et aux accents.
 - Filtre transversal **À revoir**, filtre par tag et compteurs globaux. Les filtres conservent les dossiers parents des résultats et les ouvrent automatiquement ; leur fermeture temporaire ne modifie pas les dossiers ouverts ou repliés avant le filtre.
+- Sauvegarde normale silencieuse, sans texte changeant ni animation pendant la frappe ; les erreurs restent visibles.
 - Vidage des modifications en attente avant navigation, fermeture et sortie.
 - Vérification des changements externes avant écriture ; brouillon conservé en cas de conflit.
 - Actualisation au retour dans l’application et avec **⇧⌘R**.
 - États vides et erreurs de lecture/sauvegarde visibles.
+
+## Aperçu en direct
+
+Le sélecteur en haut de la note propose trois icônes : édition brute, aperçu en direct et aperçu de lecture. Le mode est également accessible dans **Affichage → Mode de la note** et peut être choisi comme mode d’ouverture dans les réglages.
+
+Cette première version applique une mise en forme aux titres, au gras, à l’italique, aux citations, aux liens et au code pendant la saisie. Les marqueurs des titres, du gras, de l’italique, du code en ligne et des liens sont masqués sans occuper d’espace. Ils réapparaissent seulement dans l’élément sous le curseur ou intersecté par la sélection. Les marqueurs d’un élément en ligne terminé se masquent dès que le curseur en sort, sans retour à la ligne. Le copier-coller conserve le Markdown source. Le Markdown sauvegardé est inchangé. L’analyse utilise le même parseur CommonMark que l’aperçu et se déroule en arrière-plan pendant la frappe, avec un seul traitement actif qui reprend le texte le plus récent. Seuls les paragraphes modifiés et les éléments dont la syntaxe a changé sont remis en forme ; les déplacements du curseur ne recalculent pas les polices du document. Le rendu est figé pendant une sélection à la souris et les compositions de saisie sont préservées.
+
+Le code en ligne reçoit un fond discret arrondi ; les blocs de code utilisent une police monospace, un retrait et un fond sur toute la largeur. Les lignes de délimiteurs (avec langage éventuel) se révèlent lorsque le curseur les atteint et restent masquées dans le corps du bloc. Les listes et les citations gardent leurs marqueurs ; les images ou tableaux ne sont pas rendus dans l’éditeur. L’aperçu de lecture conserve le rendu complet déjà disponible. Le passage entre les trois modes conserve l’éditeur et sa sélection ; changer de note remet l’historique d’annulation à zéro.
 
 ## Réglages
 
@@ -115,7 +124,7 @@ Ou exécuter `bash Scripts/check.sh`. Les tests sont deux cibles Swift Package, 
 
 Les tests couvrent notamment le jalon statut → sauvegarde → nouvelle instance du stockage → filtre, les notes sans YAML, la conservation du corps et des propriétés inconnues, les fins de ligne, les métadonnées invalides, les conflits externes, les doublons et les liens symboliques. Le bookmark, la fermeture de fenêtre et le confort visuel nécessitent également un essai dans l’application native sandboxée.
 
-État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **37 tests passent** (24 pour le cœur et 13 pour la sélection des notes, les filtres, les préférences, les couleurs clair/sombre et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
+État de validation dans l’environnement de création : les vrais packages ont été résolus et verrouillés dans `Package.resolved`. L’application a été compilée via Swift Package Manager et le bundle signé localement. Les **62 tests passent** (32 pour le cœur et 30 pour l’éditeur natif, la sélection des notes, les filtres, les préférences, les couleurs clair/sombre et la navigation de l’aperçu) avec `ANDORR_TEST_COORDINATION=direct` : cet adaptateur réservé aux tests remplace le service système de coordination indisponible dans le lanceur, mais conserve les vrais fichiers, le parseur YAML, le rendu Markdown, les comparaisons de versions et les écritures de production. Sans cette variable, les tests emploient la coordination native comme l’application. Aucun repli non coordonné n’est activé dans l’application.
 
 `xcodebuild` s’arrête dans cet environnement avec le code 134 avant la compilation ; le projet et les autorisations ont été vérifiés avec `plutil`. Le service de contrôle de l’interface ne démarre pas non plus. L’essai visuel, le bookmark et le parcours de relance dans l’application sandboxée restent à vérifier sur le bureau macOS.
 

@@ -35,7 +35,14 @@ struct AndorrApp: App {
                 Toggle("Afficher les statuts", isOn: $showStatuses)
                 Toggle("Afficher les tags", isOn: $showTags)
                 Divider()
-                Toggle("Aperçu Markdown", isOn: $store.preview).keyboardShortcut("p", modifiers: [.command, .shift]).disabled(store.draft == nil || store.draft?.issue != nil)
+                Picker("Mode de la note", selection: $store.editorMode) {
+                    ForEach(NoteOpeningMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }.disabled(store.draft == nil || store.draft?.issue != nil)
+                Button("Basculer l’aperçu Markdown") { store.preview.toggle() }
+                    .keyboardShortcut("p", modifiers: [.command, .shift])
+                    .disabled(store.draft == nil || store.draft?.issue != nil)
                 Divider()
                 Button("Agrandir le texte") { editorZoom = EditorZoom.adjusted(editorZoom, by: 0.1) }
                     .keyboardShortcut("+", modifiers: .command)

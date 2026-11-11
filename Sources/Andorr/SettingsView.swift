@@ -46,9 +46,14 @@ final class SystemAppearanceObserver: ObservableObject {
 }
 
 enum NoteOpeningMode: String, CaseIterable, Identifiable {
-    case edit, preview
+    case edit, live, preview
     var id: String { rawValue }
-    var title: String { self == .edit ? "Édition" : "Aperçu" }
+    var title: String {
+        switch self { case .edit: "Édition"; case .live: "Aperçu en direct"; case .preview: "Aperçu" }
+    }
+    var icon: String {
+        switch self { case .edit: "square.and.pencil"; case .live: "text.badge.star"; case .preview: "eye" }
+    }
 
     static func preferred(in preferences: UserDefaults) -> Self {
         Self(rawValue: preferences.string(forKey: PreferenceKeys.openingMode) ?? "") ?? .edit
@@ -157,7 +162,7 @@ struct SettingsView: View {
                 Picker("Mode d’ouverture", selection: $openingMode) {
                     ForEach(NoteOpeningMode.allCases) { Text($0.title).tag($0) }
                 }
-                .pickerStyle(.menu).labelsHidden().frame(width: 115)
+                .pickerStyle(.menu).labelsHidden().frame(width: 155)
             }
         }
     }

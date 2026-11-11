@@ -104,6 +104,24 @@ final class SettingsTests: XCTestCase {
     }
 
     @MainActor
+    func testLiveOpeningModeUsesExistingSavePipeline() async throws {
+        let repository = MarkdownRepository(root: root, fileAccess: SettingsFileAccess())
+        let note = try await repository.create(title: "Live", subject: "")
+        preferences.set(NoteOpeningMode.live.rawValue, forKey: PreferenceKeys.openingMode)
+        let store = WorkspaceStore(repository: repository, preferences: preferences)
+        store.notes = [note.note]
+        await store.select(note.note.id)
+        XCTAssertEqual(store.editorMode, .live)
+        store.setBody("# Révision\n\n**Important** 😀\n")
+        let saved = await store.flush()
+        XCTAssertTrue(saved)
+        let loaded = try await repository.load(id: note.note.id)
+        XCTAssertEqual(loaded.note.body, "# Révision\n\n**Important** 😀\n")
+        await store.refresh()
+        XCTAssertEqual(store.editorMode, .live)
+    }
+
+    @MainActor
     func testUnknownModeFallsBackToEditingAndInvalidMetadataDoesNotOpenPreview() async throws {
         let repository = MarkdownRepository(root: root, fileAccess: SettingsFileAccess())
         let first = try await repository.create(title: "First", subject: "")

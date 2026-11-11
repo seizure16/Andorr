@@ -374,29 +374,28 @@ struct StatusBadge: View {
 private struct EditorModeSwitch: View {
     @Environment(\.colorScheme) private var colorScheme
     private var palette: Palette { Palette(colorScheme: colorScheme) }
-    @Binding var preview: Bool
+    @Binding var mode: NoteOpeningMode
     @Namespace private var selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         HStack(spacing: 2) {
-            option("Édition", icon: "square.and.pencil", previewMode: false)
-            option("Aperçu", icon: "eye", previewMode: true)
+            ForEach(NoteOpeningMode.allCases) { option($0) }
         }
         .padding(3)
         .background(palette.sidebar, in: RoundedRectangle(cornerRadius: 7))
-        .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85), value: preview)
+        .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85), value: mode)
         .opacity(isEnabled ? 1 : 0.45)
         .fixedSize()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Mode d’affichage de la note")
     }
 
-    private func option(_ title: String, icon: String, previewMode: Bool) -> some View {
-        let selected = preview == previewMode
-        return Button { preview = previewMode } label: {
-            Label(title, systemImage: icon)
+    private func option(_ option: NoteOpeningMode) -> some View {
+        let selected = mode == option
+        return Button { mode = option } label: {
+            Label(option.title, systemImage: option.icon)
                 .labelStyle(.iconOnly)
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(selected ? Palette.accent : Color.secondary)
@@ -412,7 +411,7 @@ private struct EditorModeSwitch: View {
         }
         .buttonStyle(EditorModeButtonStyle())
         .accessibilityAddTraits(selected ? [.isSelected] : [])
-        .help(previewMode ? "Afficher le rendu Markdown (⇧⌘P)" : "Modifier le Markdown")
+        .help(option.title)
     }
 }
 
@@ -439,14 +438,14 @@ private struct EditorView: View {
     @State private var tagInput = ""
     @State private var addingTag = false
     @State private var confirmReload = false
-    @FocusState private var editorFocused: Bool
+    private var showingPreview: Bool { store.preview && note.issue == nil }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 24) {
                 Text(note.title).font(.system(size: 21, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
-                EditorModeSwitch(preview: $store.preview).disabled(note.issue != nil)
+                EditorModeSwitch(mode: $store.editorMode).disabled(note.issue != nil)
             }.padding(.horizontal, 32).padding(.vertical, 18)
             Divider().opacity(0.5)
             HStack(spacing: 10) {
@@ -496,21 +495,26 @@ private struct EditorView: View {
                 }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(.orange.opacity(0.09)).padding(.top, 8)
             }
 
-            if store.preview && note.issue == nil {
-                MarkdownPreview(source: note.body, zoom: EditorZoom.normalized(editorZoom))
-            } else {
-                TextEditor(text: Binding(get: { store.draft?.body ?? "" }, set: store.setBody))
-                    .font(.system(size: 14 * CGFloat(EditorZoom.normalized(editorZoom)), design: .monospaced))
-                    .lineSpacing(6 * CGFloat(EditorZoom.normalized(editorZoom)))
-                    .scrollContentBackground(.hidden).padding(.horizontal, 27).padding(.vertical, 18)
-                    .disabled(!store.canEdit).focused($editorFocused)
-                    .accessibilityLabel("Contenu Markdown")
+            ZStack {
+                MarkdownEditor(text: Binding(get: { store.draft?.body ?? "" }, set: store.setBody),
+                               noteID: store.root?.appendingPathComponent(note.id).path ?? note.id, zoom: EditorZoom.normalized(editorZoom),
+                               livePreview: store.editorMode == .live && note.issue == nil,
+                               editable: store.canEdit && !showingPreview)
+                    .opacity(showingPreview ? 0 : 1)
+                    .allowsHitTesting(!showingPreview)
+                    .accessibilityHidden(showingPreview)
+                if showingPreview {
+                    MarkdownPreview(source: note.body, zoom: EditorZoom.normalized(editorZoom))
+                }
             }
             Divider().opacity(0.5)
             HStack(spacing: 7) {
-                if store.isSaving { ProgressView().controlSize(.mini) }
-                else { Image(systemName: store.saveError == nil ? "checkmark" : "exclamationmark.triangle").font(.system(size: 10)) }
-                Text(store.saveLabel)
+                if note.issue != nil {
+                    Label("Lecture seule", systemImage: "lock")
+                } else if store.saveError != nil {
+                    Label("Échec de la sauvegarde", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
                 Spacer()
                 Text(note.subject.isEmpty ? "Racine du dossier" : note.subject.replacingOccurrences(of: "/", with: " › ")).lineLimit(1)
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 32).padding(.vertical, 11)

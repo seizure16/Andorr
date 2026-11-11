@@ -18,7 +18,11 @@ final class WorkspaceStore {
     var saveError: String?
     var warnings: [String] = []
     var showingNewNote = false
-    var preview = false
+    var editorMode = NoteOpeningMode.edit
+    var preview: Bool {
+        get { editorMode == .preview }
+        set { editorMode = newValue ? .preview : .edit }
+    }
 
     @ObservationIgnored private var repository: MarkdownRepository?
     @ObservationIgnored private let access: FolderAccessManager
@@ -49,13 +53,6 @@ final class WorkspaceStore {
     }
     var allTags: [String] { Array(Set(notes.flatMap(\.tags))).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
     var reviewCount: Int { notes.filter { $0.status == .toReview }.count }
-    var saveLabel: String {
-        if draft?.issue != nil { return "Lecture seule · en-tête à corriger" }
-        if saveError != nil { return "Échec de la sauvegarde · brouillon conservé" }
-        if isSaving || isDirty { return "Sauvegarde…" }
-        return "Enregistré automatiquement"
-    }
-
     func restore() async {
         guard !hasRestored else { return }; hasRestored = true
         guard preferences.object(forKey: PreferenceKeys.reopenFolder) as? Bool ?? true else { return }
@@ -235,7 +232,7 @@ final class WorkspaceStore {
         debounce?.cancel(); draft = loaded.note; selectedNoteID = loaded.note.id; expectedBytes = loaded.bytes
         revision = 0; savedRevision = 0; saveError = nil
         if applyOpeningMode {
-            preview = loaded.note.issue == nil && NoteOpeningMode.preferred(in: preferences) == .preview
+            editorMode = loaded.note.issue == nil ? NoteOpeningMode.preferred(in: preferences) : .edit
         }
     }
 
