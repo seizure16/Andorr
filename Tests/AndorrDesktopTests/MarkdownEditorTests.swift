@@ -50,10 +50,10 @@ final class MarkdownEditorTests: XCTestCase {
         coordinator.spans = MarkdownEditorSyntax.spans(in: body)
         coordinator.styledSource = body
         coordinator.render()
-        view.undoManager?.undo()
+        XCTAssertTrue(view.tryToPerform(#selector(MarkdownTextView.undo(_:)), with: nil))
         XCTAssertEqual(body, "")
         XCTAssertEqual(view.string, "")
-        view.undoManager?.redo()
+        XCTAssertTrue(view.tryToPerform(#selector(MarkdownTextView.redo(_:)), with: nil))
         XCTAssertEqual(body, "**Révision 😀**")
         coordinator.update(text: "Other note", noteID: "B", zoom: 1, live: false, editable: true, dark: false) { body = $0 }
         coordinator.parseTask?.cancel()
@@ -455,6 +455,36 @@ final class MarkdownEditorTests: XCTestCase {
             try png.write(to: URL(fileURLWithPath: path + "-adjacent-prose.png"))
         }
 
+    }
+
+    @MainActor
+    func testUndoRedoMenuActionsValidateHistoryAndRespectReadOnlyMode() {
+        let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        view.isRichText = false; view.allowsUndo = true
+        let undo = NSMenuItem(title: "Annuler", action: #selector(MarkdownTextView.undo(_:)), keyEquivalent: "z")
+        let redo = NSMenuItem(title: "Rétablir", action: #selector(MarkdownTextView.redo(_:)), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        XCTAssertFalse(view.validateMenuItem(undo))
+        XCTAssertFalse(view.validateMenuItem(redo))
+        view.undoManager?.groupsByEvent = false
+        view.undoManager?.beginUndoGrouping()
+        view.insertText("Cours", replacementRange: NSRange(location: 0, length: 0))
+        view.breakUndoCoalescing()
+        view.undoManager?.endUndoGrouping()
+        XCTAssertTrue(view.validateMenuItem(undo))
+        XCTAssertFalse(view.validateMenuItem(redo))
+        view.isEditable = false
+        XCTAssertFalse(view.validateMenuItem(undo))
+        view.undo(nil)
+        XCTAssertEqual(view.string, "Cours")
+        view.isEditable = true
+        view.undo(nil)
+        XCTAssertEqual(view.string, "")
+        XCTAssertFalse(view.validateMenuItem(undo))
+        XCTAssertTrue(view.validateMenuItem(redo))
+        view.redo(nil)
+        XCTAssertEqual(view.string, "Cours")
+        XCTAssertFalse(view.validateMenuItem(redo))
     }
 
     @MainActor

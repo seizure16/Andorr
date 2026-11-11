@@ -431,6 +431,33 @@ final class MarkdownTextView: NSTextView, NSLayoutManagerDelegate {
         return true
     }
 
+    // Expose standard responder actions so the Edit menu's keyboard shortcuts
+    // reach this editor's own undo manager rather than the window's history.
+    @IBAction func undo(_ sender: Any?) {
+        guard isEditable, !hasMarkedText(), textUndoManager.canUndo else { return }
+        breakUndoCoalescing()
+        textUndoManager.undo()
+    }
+
+    @IBAction func redo(_ sender: Any?) {
+        guard isEditable, !hasMarkedText(), textUndoManager.canRedo else { return }
+        breakUndoCoalescing()
+        textUndoManager.redo()
+    }
+
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(undo(_:)) { return isEditable && !hasMarkedText() && textUndoManager.canUndo }
+        if item.action == #selector(redo(_:)) { return isEditable && !hasMarkedText() && textUndoManager.canRedo }
+        return super.validateUserInterfaceItem(item)
+    }
+
+    override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(undo(_:)) || menuItem.action == #selector(redo(_:)) {
+            return validateUserInterfaceItem(menuItem)
+        }
+        return super.validateMenuItem(menuItem)
+    }
+
     private let textUndoManager = UndoManager()
     private var ownedStorage: NSTextStorage?
     override var undoManager: UndoManager? { textUndoManager }
