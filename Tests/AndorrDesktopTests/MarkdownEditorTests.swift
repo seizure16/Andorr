@@ -151,7 +151,7 @@ final class MarkdownEditorTests: XCTestCase {
     }
 
     @MainActor
-    func testCompletedInlineSyntaxClosesDuringTypingWithoutNewline() async {
+    func testInlineSyntaxHidesWhenCaretLeavesTheCompletedElement() async {
         let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
         view.isRichText = false
         let coordinator = MarkdownEditor.Coordinator()
@@ -164,7 +164,6 @@ final class MarkdownEditorTests: XCTestCase {
         XCTAssertEqual(view.selectedRange().location, 8)
         XCTAssertEqual(view.textStorage?.attribute(.markdownConcealed, at: 0, effectiveRange: nil) as? Bool, true)
         view.moveLeft(nil)
-        // Native movement skips zero-width glyphs and enters the visible word.
         XCTAssertGreaterThanOrEqual(view.selectedRange().location, 2)
         XCTAssertLessThan(view.selectedRange().location, 6)
         XCTAssertNil(view.textStorage?.attribute(.markdownConcealed, at: 0, effectiveRange: nil))
@@ -178,14 +177,19 @@ final class MarkdownEditorTests: XCTestCase {
             XCTAssertEqual(view.textStorage?.attribute(.markdownConcealed, at: marker.range.location, effectiveRange: nil) as? Bool, true)
         }
         XCTAssertFalse(NSFontManager.shared.traits(of: view.typingAttributes[.font] as! NSFont).contains(.boldFontMask))
+        view.insertText("\n", replacementRange: view.selectedRange())
+        await coordinator.parseTask?.value
+        for marker in coordinator.spans where marker.style == .marker {
+            XCTAssertEqual(view.textStorage?.attribute(.markdownConcealed, at: marker.range.location, effectiveRange: nil) as? Bool, true)
+        }
     }
 
     @MainActor
-    func testOnlyElementUnderCaretRevealsWithinTheSameParagraph() async {
+    func testOnlyEditedElementRevealsItsMarkersWithinTheSameLine() async {
         let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
         let coordinator = MarkdownEditor.Coordinator()
         coordinator.view = view; view.delegate = coordinator; coordinator.editorFocused = true
-        let source = "**premier** puis **second** et fin"
+        let source = "**premier** puis **second** et fin\nAutre ligne"
         coordinator.update(text: source, noteID: "A", zoom: 1, live: true, editable: true, dark: false) { _ in }
         await coordinator.parseTask?.value
         let second = (source as NSString).range(of: "**second**").location
@@ -201,6 +205,10 @@ final class MarkdownEditorTests: XCTestCase {
         XCTAssertNil(view.textStorage?.attribute(.markdownConcealed, at: second, effectiveRange: nil))
         XCTAssertEqual(view.selectedRange(), selection)
         XCTAssertEqual(view.string, source)
+        view.setSelectedRange(NSRange(location: (source as NSString).length, length: 0))
+        for marker in coordinator.spans where marker.style == .marker {
+            XCTAssertEqual(view.textStorage?.attribute(.markdownConcealed, at: marker.range.location, effectiveRange: nil) as? Bool, true)
+        }
     }
 
     @MainActor
@@ -261,6 +269,7 @@ final class MarkdownEditorTests: XCTestCase {
         let source = String(repeating: "Un **cours** avec du texte.\n\n", count: 1000)
         coordinator.update(text: source, noteID: "A", zoom: 1, live: true, editable: true, dark: false) { _ in }
         await coordinator.parseTask?.value
+        view.setSelectedRange(NSRange(location: (source as NSString).range(of: "\n").location + 1, length: 0))
         let recorder = EditorStorageRecorder()
         view.textStorage?.delegate = recorder
         view.setSelectedRange(NSRange(location: 7, length: 0))
@@ -485,6 +494,94 @@ final class MarkdownEditorTests: XCTestCase {
         view.redo(nil)
         XCTAssertEqual(view.string, "Cours")
         XCTAssertFalse(view.validateMenuItem(redo))
+    }
+
+    @MainActor
+    func testHeadingMarkersStayVisibleThroughTrailingSpacesUntilLeavingTheLine() async {
+        for prefix in ["#", "###"] {
+            let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+            view.isRichText = false
+            let coordinator = MarkdownEditor.Coordinator()
+            coordinator.view = view; view.delegate = coordinator; coordinator.editorFocused = true
+            coordinator.update(text: "", noteID: "A", zoom: 1, live: true, editable: true, dark: false) { _ in }
+            for character in prefix + " Bonjour  tout le monde   " {
+                view.insertText(String(character), replacementRange: view.selectedRange())
+                await coordinator.parseTask?.value
+                XCTAssertNil(view.textStorage?.attribute(.markdownConcealed, at: 0, effectiveRange: nil), "Marker vanished after \(view.string.debugDescription)")
+            }
+            let expectedSize: CGFloat = prefix == "#" ? 28 : 19
+            XCTAssertEqual((view.typingAttributes[.font] as? NSFont)?.pointSize, expectedSize)
+            let endOfTitle = view.selectedRange().location
+            view.insertText("\n", replacementRange: view.selectedRange())
+            await coordinator.parseTask?.value
+            XCTAssertEqual(view.textStorage?.attribute(.markdownConcealed, at: 0, effectiveRange: nil) as? Bool, true)
+            view.setSelectedRange(NSRange(location: endOfTitle, length: 0))
+            XCTAssertNil(view.textStorage?.attribute(.markdownConcealed, at: 0, effectiveRange: nil))
+            XCTAssertEqual((view.typingAttributes[.font] as? NSFont)?.pointSize, expectedSize)
+            view.insertText("!", replacementRange: view.selectedRange())
+            await coordinator.parseTask?.value
+            XCTAssertNil(view.textStorage?.attribute(.markdownConcealed, at: 0, effectiveRange: nil))
+            XCTAssertTrue(view.string.hasSuffix("   !\n"))
+        }
+    }
+
+    @MainActor
+    func testInlineMarkersHideAfterCompletionAndRevealWhenReentering() async {
+        for token in ["**gras**", "__gras__", "*italique*", "_italique_", "`code`", "```code```", "[lien](https://example.com)"] {
+            let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+            view.isRichText = false
+            let coordinator = MarkdownEditor.Coordinator()
+            coordinator.view = view; view.delegate = coordinator; coordinator.editorFocused = true
+            let source = "Avant " + token + " puis la suite"
+            coordinator.update(text: source, noteID: "A", zoom: 1, live: true, editable: true, dark: false) { _ in }
+            await coordinator.parseTask?.value
+            let region = (source as NSString).range(of: token)
+            view.setSelectedRange(NSRange(location: region.location + 3, length: 0))
+            for marker in coordinator.spans where marker.style == .marker {
+                XCTAssertNil(view.textStorage?.attribute(.markdownConcealed, at: marker.range.location, effectiveRange: nil), token)
+            }
+            view.setSelectedRange(NSRange(location: NSMaxRange(region), length: 0))
+            for marker in coordinator.spans where marker.style == .marker {
+                XCTAssertEqual(view.textStorage?.attribute(.markdownConcealed, at: marker.range.location, effectiveRange: nil) as? Bool, true, token)
+            }
+            view.insertText(" ", replacementRange: view.selectedRange())
+            await coordinator.parseTask?.value
+            for marker in coordinator.spans where marker.style == .marker {
+                XCTAssertEqual(view.textStorage?.attribute(.markdownConcealed, at: marker.range.location, effectiveRange: nil) as? Bool, true, token)
+            }
+            view.setSelectedRange(NSRange(location: region.location + 3, length: 0))
+            for marker in coordinator.spans where marker.style == .marker {
+                XCTAssertNil(view.textStorage?.attribute(.markdownConcealed, at: marker.range.location, effectiveRange: nil), token)
+            }
+            XCTAssertTrue(view.string.contains(token))
+        }
+    }
+
+    @MainActor
+    func testSpaceBeforeClosingDelimiterKeepsFormattingWhileEditing() async throws {
+        for delimiter in ["**", "__", "*", "_"] {
+            let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+            view.isRichText = false
+            let coordinator = MarkdownEditor.Coordinator()
+            coordinator.view = view; view.delegate = coordinator; coordinator.editorFocused = true
+            let source = delimiter + "Bonjour" + delimiter + "\nSuite"
+            coordinator.update(text: source, noteID: "A", zoom: 1, live: true, editable: true, dark: false) { _ in }
+            await coordinator.parseTask?.value
+            let closing = delimiter.count + 7
+            view.setSelectedRange(NSRange(location: closing, length: 0))
+            let trait: NSFontTraitMask = delimiter.count == 2 ? .boldFontMask : .italicFontMask
+            for character in "  le monde " {
+                view.insertText(String(character), replacementRange: view.selectedRange())
+                await coordinator.parseTask?.value
+                let font = try XCTUnwrap(view.textStorage?.attribute(.font, at: delimiter.count, effectiveRange: nil) as? NSFont)
+                XCTAssertTrue(NSFontManager.shared.traits(of: font).contains(trait), view.string)
+                XCTAssertTrue(NSFontManager.shared.traits(of: view.typingAttributes[.font] as! NSFont).contains(trait), view.string)
+            }
+            XCTAssertTrue(view.string.hasPrefix(delimiter + "Bonjour  le monde " + delimiter))
+            view.setSelectedRange(NSRange(location: (view.string as NSString).length, length: 0))
+            let font = try XCTUnwrap(view.textStorage?.attribute(.font, at: delimiter.count, effectiveRange: nil) as? NSFont)
+            XCTAssertFalse(NSFontManager.shared.traits(of: font).contains(trait))
+        }
     }
 
     @MainActor

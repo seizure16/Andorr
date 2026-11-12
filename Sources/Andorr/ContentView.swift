@@ -434,6 +434,7 @@ private struct EditorView: View {
     private var palette: Palette { Palette(colorScheme: colorScheme) }
     @Bindable var store: WorkspaceStore
     let note: Note
+    @AppStorage(PreferenceKeys.autoCloseMarkdown) private var autoCloseMarkdown = true
     @AppStorage(PreferenceKeys.editorZoom) private var editorZoom = EditorZoom.defaultScale
     @State private var tagInput = ""
     @State private var addingTag = false
@@ -499,7 +500,7 @@ private struct EditorView: View {
                 MarkdownEditor(text: Binding(get: { store.draft?.body ?? "" }, set: store.setBody),
                                noteID: store.root?.appendingPathComponent(note.id).path ?? note.id, zoom: EditorZoom.normalized(editorZoom),
                                livePreview: store.editorMode == .live && note.issue == nil,
-                               editable: store.canEdit && !showingPreview)
+                               editable: store.canEdit && !showingPreview, autoCloseMarkdown: autoCloseMarkdown)
                     .opacity(showingPreview ? 0 : 1)
                     .allowsHitTesting(!showingPreview)
                     .accessibilityHidden(showingPreview)

@@ -6,6 +6,7 @@ enum PreferenceKeys {
     static let showStatuses = "showStatuses"
     static let showTags = "showTags"
     static let editorZoom = "editorZoom"
+    static let autoCloseMarkdown = "autoCloseMarkdown"
     static let openingMode = "noteOpeningMode"
     static let reopenFolder = "reopenLastFolder"
 }
@@ -69,6 +70,7 @@ struct SettingsView: View {
     @AppStorage(PreferenceKeys.showStatuses) private var showStatuses = true
     @AppStorage(PreferenceKeys.showTags) private var showTags = true
     @AppStorage(PreferenceKeys.editorZoom) private var editorZoom = EditorZoom.defaultScale
+    @AppStorage(PreferenceKeys.autoCloseMarkdown) private var autoCloseMarkdown = true
     @AppStorage(PreferenceKeys.openingMode) private var openingMode = NoteOpeningMode.edit
     @AppStorage(PreferenceKeys.reopenFolder) private var reopenFolder = true
 
@@ -152,6 +154,7 @@ struct SettingsView: View {
             .background(palette.sidebar, in: RoundedRectangle(cornerRadius: 7))
             .accessibilityElement(children: .combine)
             Divider().opacity(0.5).padding(.vertical, 2)
+            settingsToggle("Fermer les balises automatiquement", detail: "Compléter les balises de gras et d’italique pendant la frappe.", value: $autoCloseMarkdown)
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("À l’ouverture d’une note").font(.system(size: 13, weight: .medium))

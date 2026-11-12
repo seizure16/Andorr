@@ -83,4 +83,25 @@ final class MarkdownEditorSyntaxTests: XCTestCase {
         }
     }
 
+    func testWhitespaceBeforeCloserProducesOnlyEditingFallbackForThatPair() throws {
+        for delimiter in ["**", "__", "*", "_"] {
+            let source = "**valide** puis " + delimiter + "Bonjour  " + delimiter
+            let spans = MarkdownEditorSyntax.spans(in: source)
+            let provisional = spans.filter(\.provisional)
+            XCTAssertEqual(provisional.count, 1)
+            let span = try XCTUnwrap(provisional.first)
+            XCTAssertEqual(span.style, delimiter.count == 2 ? .strong : .emphasis)
+            XCTAssertEqual((source as NSString).substring(with: span.range), delimiter + "Bonjour  " + delimiter)
+            XCTAssertEqual(span.revealRange, NSRange(location: 0, length: (source as NSString).length))
+            XCTAssertTrue(spans.contains { !$0.provisional && $0.style == .strong })
+        }
+    }
+
+    func testEditingFallbackDoesNotInterpretLiteralOrEscapedDelimiters() {
+        for source in ["`**Bonjour **`", "```\n**Bonjour **\n```", "<pre>\n**Bonjour **\n</pre>",
+                       "\\**Bonjour **", "mot__Bonjour __", "**  **", "**Bonjour**", "**inachevé"] {
+            XCTAssertFalse(MarkdownEditorSyntax.spans(in: source).contains(where: \.provisional), source)
+        }
+    }
+
 }

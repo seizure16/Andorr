@@ -9,6 +9,7 @@ struct MarkdownEditor: NSViewRepresentable {
     let zoom: Double
     let livePreview: Bool
     let editable: Bool
+    let autoCloseMarkdown: Bool
     @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -45,7 +46,7 @@ struct MarkdownEditor: NSViewRepresentable {
         context.coordinator.view = view
         view.focusChanged = { [weak coordinator = context.coordinator] focused in
             coordinator?.editorFocused = focused
-            coordinator?.updateConcealment()
+            coordinator?.refreshSelectionPresentation()
         }
         view.selectionTrackingEnded = { [weak coordinator = context.coordinator] in
             coordinator?.finishSelectionTracking()
@@ -54,6 +55,7 @@ struct MarkdownEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.view?.automaticallyCloseMarkdown = autoCloseMarkdown
         context.coordinator.update(text: text, noteID: noteID, zoom: zoom, live: livePreview,
                                    editable: editable, dark: colorScheme == .dark, onChange: { text = $0 })
     }
@@ -101,6 +103,7 @@ struct MarkdownEditor: NSViewRepresentable {
                 updating = true
                 let selection = view.selectedRange()
                 view.breakUndoCoalescing()
+                view.resetMarkdownCompletion()
                 view.string = text
                 view.undoManager?.removeAllActions()
                 let location = changedNote ? 0 : min(selection.location, (text as NSString).length)
@@ -142,7 +145,7 @@ struct MarkdownEditor: NSViewRepresentable {
 
         func textViewDidChangeSelection(_ notification: Notification) {
             guard !updating, let view, !view.hasMarkedText() else { return }
-            if live && styledSource == view.string { updateConcealment() }
+            if live && styledSource == view.string { refreshSelectionPresentation() }
             else if live { scheduleParse() }
         }
 
@@ -177,9 +180,14 @@ struct MarkdownEditor: NSViewRepresentable {
                 (selection.location < NSMaxRange(scope) || (span.revealAtEnd && selection.location == NSMaxRange(scope)))
         }
 
+        func refreshSelectionPresentation() {
+            if spans.contains(where: \.provisional) { render() }
+            else { updateConcealment() }
+        }
+
         func finishSelectionTracking() {
             if renderingDeferred { renderingDeferred = false; render() }
-            else { updateConcealment() }
+            else { refreshSelectionPresentation() }
         }
 
         /// Selection moves only change concealment; fonts and the rest of the
@@ -234,7 +242,12 @@ struct MarkdownEditor: NSViewRepresentable {
                     return caret < NSMaxRange($0.range)
                 }
                 if insideStyle, storage.length > 0 {
-                    attributes = storage.attributes(at: min(caret, storage.length - 1), effectiveRange: nil)
+                    let atHeadingEnd = spans.contains {
+                        if case .heading = $0.style { return caret == NSMaxRange($0.range) }
+                        return false
+                    }
+                    let index = atHeadingEnd ? max(0, caret - 1) : min(caret, storage.length - 1)
+                    attributes = storage.attributes(at: index, effectiveRange: nil)
                     attributes.removeValue(forKey: .markdownConcealed)
                 }
             }
@@ -245,7 +258,9 @@ struct MarkdownEditor: NSViewRepresentable {
             guard let view, let storage = view.textStorage, !view.hasMarkedText() else { return }
             guard !view.isTrackingSelection else { renderingDeferred = true; return }
             let source = view.string
-            let currentSpans = live && styledSource == source ? spans : []
+            let currentSpans = live && styledSource == source ? spans.filter {
+                !$0.provisional || markerIsActive($0, selection: view.selectedRange())
+            } : []
             var dirty: NSRange?
             if let renderedSource, renderedZoom == zoom, renderedLive == live, renderedDark == dark {
                 dirty = MarkdownEditorSyntax.changedRange(from: renderedSource, spans: renderedSpans,
@@ -277,7 +292,7 @@ struct MarkdownEditor: NSViewRepresentable {
             let origin = view.enclosingScrollView?.contentView.bounds.origin
             let target = NSMutableAttributedString(string: (source as NSString).substring(with: dirty), attributes: base)
             if live, styledSource == view.string {
-                for span in spans where NSMaxRange(span.range) <= storage.length {
+                for span in currentSpans where NSMaxRange(span.range) <= storage.length {
                     let intersection = NSIntersectionRange(span.range, dirty)
                     guard intersection.length > 0 else { continue }
                     let range = NSRange(location: intersection.location - dirty.location, length: intersection.length)
@@ -310,7 +325,7 @@ struct MarkdownEditor: NSViewRepresentable {
                 }
             }
             if live, styledSource == view.string {
-                for span in spans where span.style == .marker && NSMaxRange(span.range) <= storage.length {
+                for span in currentSpans where span.style == .marker && NSMaxRange(span.range) <= storage.length {
                     let intersection = NSIntersectionRange(span.range, dirty)
                     guard intersection.length > 0 else { continue }
                     let range = NSRange(location: intersection.location - dirty.location, length: intersection.length)
@@ -353,6 +368,33 @@ final class MarkdownTextView: NSTextView, NSLayoutManagerDelegate {
     var focusChanged: ((Bool) -> Void)?
     var selectionTrackingEnded: (() -> Void)?
     private(set) var isTrackingSelection = false
+
+    var automaticallyCloseMarkdown = false {
+        didSet { if oldValue && !automaticallyCloseMarkdown { delimiterCompletion.reset() } }
+    }
+    private lazy var delimiterCompletion = MarkdownDelimiterCompletion(view: self)
+    func resetMarkdownCompletion() { delimiterCompletion.reset() }
+
+    override func insertText(_ insertString: Any, replacementRange: NSRange) {
+        let input = (insertString as? String) ?? (insertString as? NSAttributedString)?.string
+        if let input, delimiterCompletion.insert(input, replacementRange: replacementRange) { return }
+        super.insertText(insertString, replacementRange: replacementRange)
+    }
+
+    func insertLiteralText(_ text: String, replacementRange: NSRange) {
+        super.insertText(text, replacementRange: replacementRange)
+    }
+
+    override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        guard super.shouldChangeText(in: affectedCharRange, replacementString: replacementString) else { return false }
+        if let replacementString { delimiterCompletion.textWillChange(in: affectedCharRange, replacement: replacementString) }
+        return true
+    }
+
+    override func deleteBackward(_ sender: Any?) {
+        if delimiterCompletion.deleteBackward() { return }
+        super.deleteBackward(sender)
+    }
 
     override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
         guard flag else {
