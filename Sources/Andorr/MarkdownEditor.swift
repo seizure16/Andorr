@@ -354,6 +354,18 @@ final class MarkdownTextView: NSTextView, NSLayoutManagerDelegate {
     var selectionTrackingEnded: (() -> Void)?
     private(set) var isTrackingSelection = false
 
+    override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+        guard flag else {
+            super.drawInsertionPoint(in: rect, color: color, turnedOn: false)
+            return
+        }
+        let typingFont = typingAttributes[.font] as? NSFont ?? font ?? NSFont.systemFont(ofSize: 15)
+        let height = min(rect.height, ceil(typingFont.ascender - typingFont.descender))
+        let caret = NSRect(x: rect.minX, y: rect.midY - height / 2, width: 1, height: height)
+        color.setFill()
+        caret.fill()
+    }
+
     override func mouseDown(with event: NSEvent) {
         beginSelectionTracking()
         super.mouseDown(with: event)
