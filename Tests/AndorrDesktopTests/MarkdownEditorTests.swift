@@ -585,6 +585,52 @@ final class MarkdownEditorTests: XCTestCase {
     }
 
     @MainActor
+    func testHeadingPrefixGetsItsFinalFontBeforeBackgroundRendering() async {
+        let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        view.isRichText = false
+        let coordinator = MarkdownEditor.Coordinator()
+        coordinator.view = view; view.delegate = coordinator; coordinator.editorFocused = true
+        coordinator.update(text: "", noteID: "A", zoom: 1, live: true, editable: true, dark: false) { _ in }
+        await coordinator.parseTask?.value
+        for (level, size) in [(1, 28.0), (2, 23.0), (3, 19.0), (4, 16.0), (5, 16.0), (6, 16.0), (7, 15.0)] {
+            view.insertText("#", replacementRange: view.selectedRange())
+            // No await: native insertion must already have its final geometry.
+            XCTAssertEqual((view.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize, CGFloat(size), "Level \(level)")
+            XCTAssertEqual((view.typingAttributes[.font] as? NSFont)?.pointSize, CGFloat(size))
+            view.layoutManager?.ensureLayout(for: view.textContainer!)
+            let before = view.layoutManager?.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil)
+            await coordinator.parseTask?.value
+            view.layoutManager?.ensureLayout(for: view.textContainer!)
+            XCTAssertEqual(view.layoutManager?.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil), before)
+        }
+        coordinator.update(text: "Bonjour", noteID: "B", zoom: 1, live: true, editable: true, dark: false) { _ in }
+        await coordinator.parseTask?.value
+        view.insertText("# ", replacementRange: NSRange(location: 0, length: 0))
+        XCTAssertEqual((view.textStorage?.attribute(.font, at: 2, effectiveRange: nil) as? NSFont)?.pointSize, 28)
+        view.insertText("", replacementRange: NSRange(location: 0, length: 2))
+        XCTAssertEqual((view.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize, 15)
+        await coordinator.parseTask?.value
+        XCTAssertEqual(view.string, "Bonjour")
+    }
+
+    @MainActor
+    func testImmediateHeadingStylingRespectsCodeAndRawMode() async {
+        for (source, live, expected) in [("```swift\n", true, CGFloat(13)), ("", false, CGFloat(14)), ("\\", true, CGFloat(15))] {
+            let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+            let coordinator = MarkdownEditor.Coordinator()
+            coordinator.view = view; view.delegate = coordinator; coordinator.editorFocused = true
+            coordinator.update(text: source, noteID: "A", zoom: 1, live: live, editable: true, dark: false) { _ in }
+            await coordinator.parseTask?.value
+            view.setSelectedRange(NSRange(location: (source as NSString).length, length: 0))
+            view.insertText("#", replacementRange: view.selectedRange())
+            let index = (source as NSString).length
+            XCTAssertEqual((view.textStorage?.attribute(.font, at: index, effectiveRange: nil) as? NSFont)?.pointSize, expected)
+            await coordinator.parseTask?.value
+            XCTAssertEqual((view.textStorage?.attribute(.font, at: index, effectiveRange: nil) as? NSFont)?.pointSize, expected)
+        }
+    }
+
+    @MainActor
     func testMouseTrackingDefersLayoutUntilReleaseIncludingPendingParse() async {
         let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
         let coordinator = MarkdownEditor.Coordinator()

@@ -140,13 +140,57 @@ struct MarkdownEditor: NSViewRepresentable {
             guard !view.hasMarkedText() else { return }
             // One worker consumes the latest snapshot, without waiting for a pause
             // in typing or starting concurrent parses for each keystroke.
-            if live { scheduleParse() }
+            if live && !applyImmediateHeadingFormatting() { scheduleParse() }
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
             guard !updating, let view, !view.hasMarkedText() else { return }
             if live && styledSource == view.string { refreshSelectionPresentation() }
             else if live { scheduleParse() }
+        }
+
+        private static let headingPrefix = try! NSRegularExpression(pattern: "^ {0,3}(#{1,6})(?:[ \t]|$)")
+
+        private static func headingSize(_ level: Int) -> CGFloat {
+            level == 1 ? 28 : level == 2 ? 23 : level == 3 ? 19 : 16
+        }
+
+        /// Resolve heading size changes within the native edit, before the next
+        /// display frame. Ordinary typing still uses the background parser.
+        private func applyImmediateHeadingFormatting() -> Bool {
+            guard let view, !view.hasMarkedText(), !view.isTrackingSelection,
+                  let storage = view.textStorage else { return false }
+            let source = view.string
+            let text = source as NSString
+            let caret = min(view.selectedRange().location, text.length)
+            var start = 0, end = 0
+            text.getLineStart(&start, end: nil, contentsEnd: &end, for: NSRange(location: caret, length: 0))
+            let line = text.substring(with: NSRange(location: start, length: end - start))
+            let match = Self.headingPrefix.firstMatch(in: line, range: NSRange(location: 0, length: (line as NSString).length))
+            let previousHeading = renderedSpans.contains {
+                if case .heading = $0.style { return $0.range.location >= start && $0.range.location <= end }
+                return false
+            }
+            if let match {
+                let hash = start + match.range(at: 1).location
+                if spans.contains(where: { $0.style == .codeBlock && NSLocationInRange(hash, $0.range) }) { return false }
+                let expected = Self.headingSize(match.range(at: 1).length) * CGFloat(EditorZoom.normalized(zoom))
+                let current = storage.attribute(.font, at: hash, effectiveRange: nil) as? NSFont
+                if let current, abs(current.pointSize - expected) < 0.01 { return false }
+            } else if !previousHeading {
+                // Return to body-size typing immediately after leaving a title.
+                if start == end, renderedSpans.contains(where: {
+                    guard case .heading = $0.style, NSMaxRange($0.range) < start else { return false }
+                    let gap = NSRange(location: NSMaxRange($0.range), length: start - NSMaxRange($0.range))
+                    return text.substring(with: gap).trimmingCharacters(in: .newlines).isEmpty
+                }) { updateTypingAttributes() }
+                return false
+            }
+            parseTask?.cancel(); parseTask = nil; parseID = UUID()
+            spans = MarkdownEditorSyntax.spans(in: source)
+            styledSource = source
+            render()
+            return true
         }
 
         func scheduleParse() {
@@ -298,7 +342,7 @@ struct MarkdownEditor: NSViewRepresentable {
                     let range = NSRange(location: intersection.location - dirty.location, length: intersection.length)
                     switch span.style {
                     case let .heading(level):
-                        let size: CGFloat = level == 1 ? 28 : level == 2 ? 23 : level == 3 ? 19 : 16
+                        let size = Self.headingSize(level)
                         target.addAttribute(.font, value: NSFont.systemFont(ofSize: size * scale, weight: .semibold), range: range)
                     case .strong, .emphasis:
                         target.enumerateAttribute(.font, in: range) { value, range, _ in
