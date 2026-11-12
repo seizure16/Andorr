@@ -7,7 +7,7 @@ Application macOS gratuite et open source (MIT) pour les notes de cours Markdown
 - Swift + SwiftUI, macOS 14 minimum. Swift tools 6.2, mode de langage Swift 5. Deux zones avec `NavigationSplitView`.
 - `Sources/AndorrCore/` : modèles `Note`, arborescence `NoteTree`, `FrontmatterCodec`, acteur `MarkdownRepository`, rendu HTML `MarkdownRenderer`, analyse des styles `MarkdownEditorSyntax`. Dépendances SPM épinglées : Yams 6.2.2 et swift-markdown 0.8.0.
 - `Sources/Andorr/` (cible SPM `AndorrDesktop`, cible Xcode `Andorr`) : `WorkspaceStore` observable sur le MainActor, vues SwiftUI, `FolderAccessManager`, préférences et cycle de vie.
-- `MarkdownEditor.swift` : pont `NSViewRepresentable` vers `NSTextView` et layout AppKit personnalisé ; édition brute et aperçu en direct partagent le même éditeur. `MarkdownDelimiterCompletion.swift` gère les paires automatiques et leur historique.
+- `MarkdownEditor.swift` : pont `NSViewRepresentable` vers `NSTextView` et layout AppKit personnalisé ; édition brute et aperçu en direct partagent le même éditeur. `MarkdownDelimiterCompletion.swift` gère les paires automatiques et leur historique. `MarkdownCodeHighlighter.swift` isole Highlightr 2.3.0 sur un acteur et applique uniquement les couleurs aux blocs avec langage explicite.
 - `MarkdownPreview.swift` : aperçu de lecture HTML dans `WKWebView`, JavaScript désactivé, sans chargement d’images ; liens externes ouverts uniquement sur action utilisateur.
 - `Tests/AndorrCoreTests/` et `Tests/AndorrDesktopTests/` : tests Swift Package, distincts de la cible application Xcode.
 

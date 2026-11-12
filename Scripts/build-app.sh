@@ -19,6 +19,9 @@ binary_dir="$(swift build --show-bin-path "$@")"
 app_dir="$PWD/build/Andorr.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp "$binary_dir/AndorrDesktop" "$app_dir/Contents/MacOS/Andorr"
+# Highlightr loads its JavaScript and themes from the Swift Package resource bundle.
+cp -R "$binary_dir/Highlightr_Highlightr.bundle" "$app_dir/Contents/Resources/"
+cp Resources/ThirdPartyNotices.txt "$app_dir/Contents/Resources/"
 cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

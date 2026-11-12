@@ -386,6 +386,100 @@ final class MarkdownEditorTests: XCTestCase {
     }
 
     @MainActor
+    func testBashSourceCommandIsHighlightedInLiveEditor() async throws {
+        let source = "```bash\nsource ~/.bashrc\n```"
+        for dark in [false, true] {
+            let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+            let coordinator = MarkdownEditor.Coordinator()
+            coordinator.view = view; view.delegate = coordinator
+            coordinator.update(text: source, noteID: "Bash", zoom: 1, live: true, editable: true, dark: dark) { _ in }
+            await coordinator.parseTask?.value
+            let storage = try XCTUnwrap(view.textStorage)
+            let command = (source as NSString).range(of: "source").location
+            let path = (source as NSString).range(of: "~/.bashrc").location
+            let commandColor = try XCTUnwrap(storage.attribute(.foregroundColor, at: command, effectiveRange: nil) as? NSColor)
+            let pathColor = try XCTUnwrap(storage.attribute(.foregroundColor, at: path, effectiveRange: nil) as? NSColor)
+            XCTAssertNotEqual(commandColor, pathColor, "Bash builtins should be colored: \(commandColor), \(pathColor)")
+            if let path = ProcessInfo.processInfo.environment["ANDORR_EDITOR_RENDER_PATH"], let layout = view.layoutManager {
+                layout.ensureLayout(for: try XCTUnwrap(view.textContainer))
+                let image = NSImage(size: NSSize(width: 600, height: 120), flipped: true) { bounds in
+                    (dark ? NSColor(white: 0.125, alpha: 1) : NSColor.white).setFill()
+                    bounds.fill()
+                    let glyphs = NSRange(location: 0, length: layout.numberOfGlyphs)
+                    layout.drawBackground(forGlyphRange: glyphs, at: NSPoint(x: 20, y: 20))
+                    layout.drawGlyphs(forGlyphRange: glyphs, at: NSPoint(x: 20, y: 20))
+                    return true
+                }
+                let cgImage = try XCTUnwrap(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+                let png = try XCTUnwrap(NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:]))
+                try png.write(to: URL(fileURLWithPath: path + (dark ? "-bash-dark.png" : "-bash-light.png")))
+            }
+        }
+    }
+
+    @MainActor
+    func testCodeHighlightingPreservesNativeEditingAndUpdatesThemesAndLanguages() async throws {
+        let source = "😀\n```python\n# commentaire\nprint(\"bonjour 😀 & <\")\n```\nSuite"
+        let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        view.isRichText = false; view.allowsUndo = true
+        let coordinator = MarkdownEditor.Coordinator()
+        coordinator.view = view; view.delegate = coordinator
+        var saved = source
+        coordinator.update(text: source, noteID: "A", zoom: 1, live: true, editable: true, dark: true) { saved = $0 }
+        await coordinator.parseTask?.value
+        let stringRange = (source as NSString).range(of: "bonjour")
+        let commentRange = (source as NSString).range(of: "commentaire")
+        let storage = try XCTUnwrap(view.textStorage)
+        let darkColor = try XCTUnwrap(storage.attribute(.foregroundColor, at: stringRange.location, effectiveRange: nil) as? NSColor)
+        XCTAssertNotEqual(darkColor, storage.attribute(.foregroundColor, at: commentRange.location, effectiveRange: nil) as? NSColor)
+        XCTAssertEqual((storage.attribute(.font, at: stringRange.location, effectiveRange: nil) as? NSFont)?.pointSize, 13)
+        XCTAssertEqual((storage.attribute(.paragraphStyle, at: stringRange.location, effectiveRange: nil) as? NSParagraphStyle)?.headIndent, 12)
+        view.setSelectedRange(NSRange(location: stringRange.location, length: 0))
+        let selection = view.selectedRange()
+        coordinator.update(text: source, noteID: "A", zoom: 1, live: true, editable: true, dark: false) { saved = $0 }
+        await coordinator.parseTask?.value
+        let lightColor = storage.attribute(.foregroundColor, at: stringRange.location, effectiveRange: nil) as? NSColor
+        XCTAssertNotEqual(lightColor, darkColor)
+        XCTAssertEqual(view.selectedRange(), selection)
+        XCTAssertEqual(view.string, source)
+        XCTAssertFalse(view.undoManager?.canUndo ?? true)
+        view.insertText("test", replacementRange: selection)
+        await coordinator.parseTask?.value
+        XCTAssertEqual(saved, view.string)
+        view.undo(nil)
+        await coordinator.parseTask?.value
+        XCTAssertEqual(view.string, source)
+        XCTAssertEqual(saved, source)
+        coordinator.update(text: source, noteID: "A", zoom: 1, live: false, editable: true, dark: false) { _ in }
+        XCTAssertEqual(storage.attribute(.foregroundColor, at: stringRange.location, effectiveRange: nil) as? NSColor,
+                       storage.attribute(.foregroundColor, at: commentRange.location, effectiveRange: nil) as? NSColor)
+        XCTAssertNil(storage.attribute(.markdownCodeBlock, at: stringRange.location, effectiveRange: nil))
+        for language in ["", "unknown-language"] {
+            let plain = source.replacingOccurrences(of: "```python", with: "```" + language)
+            coordinator.update(text: plain, noteID: "A", zoom: 1, live: true, editable: true, dark: false) { _ in }
+            await coordinator.parseTask?.value
+            let code = (plain as NSString).range(of: "bonjour").location
+            XCTAssertEqual(storage.attribute(.foregroundColor, at: code, effectiveRange: nil) as? NSColor,
+                           storage.attribute(.foregroundColor, at: (plain as NSString).range(of: "commentaire").location, effectiveRange: nil) as? NSColor)
+        }
+    }
+
+    func testHighlighterSupportsAliasesUnicodeAndUnfinishedFencesWithoutColoringMarkers() async {
+        let highlighter = MarkdownCodeHighlighter()
+        for language in ["bash", "sh", "python", "js", "typescript", "swift", "json", "html", "css", "c#"] {
+            let source = "Avant 😀\n~~~\(language)\n\"hello 😀 & < >\"\n"
+            let spans = MarkdownEditorSyntax.spans(in: source)
+            let colors = await highlighter.colors(in: source, spans: spans, dark: false)
+            XCTAssertFalse(colors.isEmpty, language)
+            let codeStart = (source as NSString).range(of: "\"hello").location
+            for token in colors {
+                XCTAssertGreaterThanOrEqual(token.range.location, codeStart)
+                XCTAssertLessThanOrEqual(NSMaxRange(token.range), (source as NSString).length)
+            }
+        }
+    }
+
+    @MainActor
     func testCodeBlockLanguageUsesOpeningFenceInfoOnly() {
         let layout = MarkdownLayoutManager()
         for (source, expected) in [("```bash\necho hello\n```", "bash"), ("~~~swift extra\nlet x = 1\n~~~", "swift"),

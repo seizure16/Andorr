@@ -77,6 +77,9 @@ struct MarkdownEditor: NSViewRepresentable {
         var updating = false
         var spans: [MarkdownEditorSpan] = []
         var styledSource: String?
+        private let codeHighlighter = MarkdownCodeHighlighter()
+        private var codeColors: [MarkdownCodeColor] = []
+        private var renderedCodeColors: [MarkdownCodeColor] = []
         var parseTask: Task<Void, Never>?
         private var parseID = UUID()
         private var renderingDeferred = false
@@ -110,7 +113,7 @@ struct MarkdownEditor: NSViewRepresentable {
                 view.setSelectedRange(NSRange(location: location, length: changedNote ? 0 : min(selection.length, (text as NSString).length - location)))
                 if changedNote { view.enclosingScrollView?.contentView.scroll(to: .zero) }
                 updating = false
-                spans = []; styledSource = nil
+                spans = []; styledSource = nil; codeColors = []
                 renderedSource = nil; pendingEditedRange = nil
             }
             if changedNote || changedText || changedStyle {
@@ -203,13 +206,17 @@ struct MarkdownEditor: NSViewRepresentable {
                     guard let self, self.parseID == jobID, self.noteID == identity,
                           self.live, let view = self.view, !view.hasMarkedText() else { break }
                     let source = view.string
+                    let dark = self.dark
                     let result = await Task.detached(priority: .userInitiated) {
                         MarkdownEditorSyntax.spans(in: source)
                     }.value
+                    guard !Task.isCancelled else { break }
+                    if view.string != source { continue }
+                    let colors = await self.codeHighlighter.colors(in: source, spans: result, dark: dark)
                     guard !Task.isCancelled, self.parseID == jobID, self.noteID == identity,
                           !view.hasMarkedText() else { break }
                     if view.string != source { continue }
-                    self.spans = result; self.styledSource = source
+                    self.spans = result; self.styledSource = source; self.codeColors = colors
                     self.render()
                     break
                 }
@@ -310,6 +317,15 @@ struct MarkdownEditor: NSViewRepresentable {
                 dirty = MarkdownEditorSyntax.changedRange(from: renderedSource, spans: renderedSpans,
                                                          to: source, spans: currentSpans)
             } else { dirty = NSRange(location: 0, length: storage.length) }
+            let currentColors = live && styledSource == source ? codeColors : []
+            if renderedCodeColors != currentColors {
+                for token in renderedCodeColors + currentColors {
+                    let start = min(token.range.location, storage.length)
+                    let range = NSRange(location: start, length: min(token.range.length, storage.length - start))
+                    dirty = dirty.map { NSUnionRange($0, range) } ?? range
+                }
+            }
+            renderedCodeColors = currentColors
             if let pendingEditedRange {
                 let start = min(pendingEditedRange.location, storage.length)
                 let clipped = NSRange(location: start, length: min(pendingEditedRange.length, storage.length - start))
@@ -366,6 +382,13 @@ struct MarkdownEditor: NSViewRepresentable {
                     case .link: target.addAttribute(.foregroundColor, value: dark ? NSColor(red: 0.65, green: 0.71, blue: 1, alpha: 1) : NSColor(red: 0.26, green: 0.35, blue: 0.66, alpha: 1), range: range)
                     case .marker: break // Apply concealment after all nested font styles.
                     }
+                }
+            }
+            for token in currentColors {
+                let intersection = NSIntersectionRange(token.range, dirty)
+                if intersection.length > 0 {
+                    target.addAttribute(.foregroundColor, value: token.color,
+                                        range: NSRange(location: intersection.location - dirty.location, length: intersection.length))
                 }
             }
             if live, styledSource == view.string {
