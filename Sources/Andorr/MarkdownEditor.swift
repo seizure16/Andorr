@@ -435,6 +435,11 @@ final class MarkdownTextView: NSTextView, NSLayoutManagerDelegate {
         return true
     }
 
+    override func insertNewline(_ sender: Any?) {
+        if delimiterCompletion.insertNewline() { return }
+        super.insertNewline(sender)
+    }
+
     override func deleteBackward(_ sender: Any?) {
         if delimiterCompletion.deleteBackward() { return }
         super.deleteBackward(sender)
@@ -490,7 +495,9 @@ final class MarkdownTextView: NSTextView, NSLayoutManagerDelegate {
             // Preserve paragraph boundaries even when a marker spans multiple lines.
             let codeUnit = text.character(at: character)
             guard codeUnit != 10 && codeUnit != 13 else { continue }
-            properties[index].insert(.null)
+            // Null glyphs may merge otherwise empty fence paragraphs. A
+            // zero-advance control glyph keeps their native line boxes alive.
+            properties[index].insert(storage.attribute(.markdownCodeBlock, at: character, effectiveRange: nil) != nil ? .controlCharacter : .null)
             changed = true
         }
         guard changed else { return 0 }
@@ -500,33 +507,12 @@ final class MarkdownTextView: NSTextView, NSLayoutManagerDelegate {
         return range.length
     }
 
-    func layoutManager(_ layoutManager: NSLayoutManager, shouldSetLineFragmentRect lineRect: NSRectPointer,
-                       lineFragmentUsedRect usedRect: NSRectPointer, baselineOffset: UnsafeMutablePointer<CGFloat>,
-                       in container: NSTextContainer, forGlyphRange range: NSRange) -> Bool {
-        guard let storage = layoutManager.textStorage else { return false }
-        let characters = layoutManager.characterRange(forGlyphRange: range, actualGlyphRange: nil)
-        guard characters.length > 0 else { return false }
-        let text = storage.string as NSString
-        var hiddenFence = false
-        for index in characters.location..<NSMaxRange(characters) {
-            let unit = text.character(at: index)
-            if unit == 10 || unit == 13 { continue }
-            guard storage.attribute(.markdownCodeBlock, at: index, effectiveRange: nil) != nil,
-                  storage.attribute(.markdownConcealed, at: index, effectiveRange: nil) as? Bool == true else { return false }
-            hiddenFence = true
-        }
-        if !hiddenFence, characters.location > 0 {
-            let previous = characters.location - 1
-            hiddenFence = storage.attribute(.markdownCodeBlock, at: previous, effectiveRange: nil) != nil &&
-                storage.attribute(.markdownConcealed, at: previous, effectiveRange: nil) as? Bool == true
-        }
-        guard hiddenFence else { return false }
-        let font = storage.attribute(.font, at: min(NSMaxRange(characters) - 1, storage.length - 1), effectiveRange: nil) as? NSFont
-        let padding = 8 * (font?.pointSize ?? 13) / 13
-        lineRect.pointee.size.height = padding
-        usedRect.pointee.size.height = padding
-        baselineOffset.pointee = 0
-        return true
+    func layoutManager(_ layoutManager: NSLayoutManager, shouldUse action: NSLayoutManager.ControlCharacterAction,
+                       forControlCharacterAt charIndex: Int) -> NSLayoutManager.ControlCharacterAction {
+        guard let storage = layoutManager.textStorage, charIndex < storage.length,
+              storage.attribute(.markdownConcealed, at: charIndex, effectiveRange: nil) as? Bool == true else { return action }
+        let unit = (storage.string as NSString).character(at: charIndex)
+        return unit == 10 || unit == 13 ? action : .zeroAdvancement
     }
 
     // Expose standard responder actions so the Edit menu's keyboard shortcuts
@@ -599,6 +585,18 @@ final class MarkdownTextView: NSTextView, NSLayoutManagerDelegate {
 
 /// Background decoration stays separate from glyphs, source text and selection.
 final class MarkdownLayoutManager: NSLayoutManager {
+    func codeBlockLanguage(forCharacterRange range: NSRange) -> String? {
+        guard let storage = textStorage, range.length > 0, NSMaxRange(range) <= storage.length else { return nil }
+        let source = storage.string as NSString
+        let line = source.lineRange(for: NSRange(location: range.location, length: 0))
+        let opening = source.substring(with: line).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let marker = opening.first, marker == "`" || marker == "~" else { return nil }
+        let fence = opening.prefix(while: { $0 == marker })
+        guard fence.count >= 3 else { return nil }
+        let info = opening.dropFirst(fence.count).split(whereSeparator: { $0.isWhitespace }).first
+        return info.map(String.init)
+    }
+
     func codeBlockRect(forCharacterRange range: NSRange, in container: NSTextContainer) -> NSRect {
         let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
         var bounds = NSRect.null
@@ -644,6 +642,20 @@ final class MarkdownLayoutManager: NSLayoutManager {
             let rect = bounds.offsetBy(dx: origin.x, dy: origin.y)
             color.setFill()
             NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
+            if let language = self.codeBlockLanguage(forCharacterRange: fullRange),
+               storage.attribute(.markdownConcealed, at: fullRange.location, effectiveRange: nil) as? Bool == true {
+                let scale = (storage.attribute(.font, at: fullRange.location, effectiveRange: nil) as? NSFont)?.pointSize ?? 13
+                let font = NSFont.monospacedSystemFont(ofSize: 10 * scale / 13, weight: .medium)
+                let foreground = (storage.attribute(.foregroundColor, at: fullRange.location, effectiveRange: nil) as? NSColor ?? .secondaryLabelColor)
+                    .withAlphaComponent(0.6)
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.alignment = .right
+                paragraph.lineBreakMode = .byTruncatingTail
+                let inset = 12 * scale / 13
+                let labelRect = NSRect(x: rect.midX, y: rect.minY + 3 * scale / 13,
+                                       width: max(0, rect.width / 2 - inset), height: ceil(font.ascender - font.descender) + 2)
+                (language as NSString).draw(in: labelRect, withAttributes: [.font: font, .foregroundColor: foreground, .paragraphStyle: paragraph])
+            }
         }
         storage.enumerateAttribute(.markdownInlineCode, in: characters) { value, range, _ in
             guard let color = value as? NSColor else { return }

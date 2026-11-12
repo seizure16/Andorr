@@ -28,6 +28,21 @@ final class MarkdownDelimiterCompletion {
         let text = view.string as NSString
         guard NSMaxRange(selection) <= text.length else { return false }
 
+        if input == "`", selection.length == 0 {
+            if pairs.contains(where: { $0.delimiter == "```" && NSLocationInRange(selection.location, $0.closingRange) }) {
+                view.setSelectedRange(NSRange(location: selection.location + 1, length: 0))
+                return true
+            }
+            let line = text.lineRange(for: selection)
+            let prefix = text.substring(with: NSRange(location: line.location, length: selection.location - line.location))
+            if prefix == "``", !isCode(at: NSRange(location: line.location, length: 0), text: text),
+               text.substring(with: NSRange(location: selection.location, length: NSMaxRange(line) - selection.location))
+                .trimmingCharacters(in: .newlines).isEmpty {
+                return replace(selection, with: "````", selection: NSRange(location: selection.location + 1, length: 0),
+                               pair: Pair(opening: line.location, closing: selection.location + 1, delimiter: "```"))
+            }
+        }
+
         // Typing a space after a single empty '*' keeps Markdown list entry easy.
         if input == " ", let pair = pairs.last(where: { $0.width == 1 && $0.contentRange == selection && selection.length == 0 }) {
             guard !isCode(at: selection, text: text) else { return false }
@@ -62,13 +77,26 @@ final class MarkdownDelimiterCompletion {
         guard let view, view.automaticallyCloseMarkdown, view.isEditable, !view.hasMarkedText() else { return false }
         let caret = view.selectedRange()
         guard caret.length == 0, let pair = pairs.last(where: { $0.contentRange == caret }),
-              !isCode(at: caret, text: view.string as NSString) else { return false }
+              (pair.delimiter == "```" || !isCode(at: caret, text: view.string as NSString)) else { return false }
         return replace(NSRange(location: pair.opening, length: pair.width * 2), with: "",
                        selection: NSRange(location: pair.opening, length: 0))
     }
 
+    func insertNewline() -> Bool {
+        guard let view, view.automaticallyCloseMarkdown, view.isEditable, !view.hasMarkedText() else { return false }
+        let caret = view.selectedRange()
+        let text = view.string as NSString
+        guard caret.length == 0,
+              let pair = pairs.last(where: { $0.delimiter == "```" && $0.closing == caret.location }),
+              !text.substring(with: pair.contentRange).contains("\n") else { return false }
+        return replace(caret, with: "\n\n", selection: NSRange(location: caret.location + 1, length: 0))
+    }
+
     /// Called only after AppKit/delegates accept a native replacement.
     func textWillChange(in range: NSRange, replacement: String) {
+        // Undo restores the tracked snapshot itself; applying offsets again
+        // would move the closer twice when reverting an edit inside a pair.
+        if view?.undoManager?.isUndoing == true || view?.undoManager?.isRedoing == true { return }
         let before = pairs
         let delta = (replacement as NSString).length - range.length
         pairs = pairs.compactMap { original in

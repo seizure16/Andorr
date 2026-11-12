@@ -386,6 +386,46 @@ final class MarkdownEditorTests: XCTestCase {
     }
 
     @MainActor
+    func testCodeBlockLanguageUsesOpeningFenceInfoOnly() {
+        let layout = MarkdownLayoutManager()
+        for (source, expected) in [("```bash\necho hello\n```", "bash"), ("~~~swift extra\nlet x = 1\n~~~", "swift"),
+                                   ("```\ncode\n```", nil), ("    indented code", nil), ("```python\n", "python")] {
+            let storage = NSTextStorage(string: source)
+            storage.addLayoutManager(layout)
+            XCTAssertEqual(layout.codeBlockLanguage(forCharacterRange: NSRange(location: 0, length: storage.length)), expected)
+            XCTAssertEqual(storage.string, source)
+            storage.removeLayoutManager(layout)
+        }
+    }
+
+    @MainActor
+    func testEmptyCodeFenceKeepsTwoFullHeightLinesWhenHiddenOrActive() async throws {
+        for source in ["```\n```", "```\n```\nSuite"] {
+            for zoom in [1.0, 2.0] {
+                let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+                let coordinator = MarkdownEditor.Coordinator()
+                coordinator.view = view; view.delegate = coordinator
+                coordinator.update(text: source, noteID: "A", zoom: zoom, live: true, editable: true, dark: false) { _ in }
+                await coordinator.parseTask?.value
+                let layout = try XCTUnwrap(view.layoutManager)
+                let container = try XCTUnwrap(view.textContainer)
+                for focused in [false, true] {
+                    coordinator.editorFocused = focused
+                    view.setSelectedRange(NSRange(location: 1, length: 0))
+                    coordinator.updateConcealment()
+                    layout.ensureLayout(for: container)
+                    let opening = layout.lineFragmentRect(forGlyphAt: layout.glyphIndexForCharacter(at: 0), effectiveRange: nil)
+                    let closing = layout.lineFragmentRect(forGlyphAt: layout.glyphIndexForCharacter(at: 4), effectiveRange: nil)
+                    XCTAssertGreaterThanOrEqual(opening.height, 13 * zoom)
+                    XCTAssertGreaterThanOrEqual(closing.height, 13 * zoom)
+                    XCTAssertGreaterThanOrEqual(closing.minY, opening.maxY - 0.5)
+                    XCTAssertEqual(view.string, source)
+                }
+            }
+        }
+    }
+
+    @MainActor
     func testFencesStayHiddenInsideCodeAndRevealOnlyOnFenceLines() async {
         let view = MarkdownTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
         let coordinator = MarkdownEditor.Coordinator()

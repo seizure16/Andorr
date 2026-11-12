@@ -114,23 +114,49 @@ private struct SidebarView: View {
             }
 
             if !store.allTags.isEmpty {
-                HStack {
+                HStack(spacing: 0) {
                     Menu {
-                        Button("Tous les tags") { store.selectedTag = nil }
-                        Divider()
-                        ForEach(store.allTags, id: \.self) { tag in
-                            Button("#\(tag)") { store.selectedTag = tag }
+                        Picker("Filtrer par tag", selection: $store.selectedTag) {
+                            Text("Tous les tags").tag(String?.none)
+                            Divider()
+                            ForEach(store.allTags, id: \.self) { tag in
+                                Text("#\(tag)").tag(Optional(tag))
+                            }
                         }
+                        .pickerStyle(.inline)
                     } label: {
-                        Label(store.selectedTag.map { "#\($0)" } ?? "Filtrer par tag", systemImage: "number")
-                            .font(.system(size: 12)).foregroundStyle(.secondary)
-                    }.menuStyle(.borderlessButton).fixedSize()
-                    Spacer()
-                    if store.selectedTag != nil {
-                        Button { store.selectedTag = nil } label: { Image(systemName: "xmark").font(.caption) }
-                            .buttonStyle(.plain).accessibilityLabel("Retirer le filtre de tag")
+                        HStack(spacing: 8) {
+                            Image(systemName: "tag")
+                                .frame(width: 16)
+                            Text(store.selectedTag.map { "#\($0)" } ?? "Tags")
+                                .lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .font(.system(size: 12))
+                        .foregroundStyle(store.selectedTag == nil ? Color.secondary : Color.primary)
+                        .padding(.horizontal, 10).frame(height: 30)
+                        .contentShape(Rectangle())
                     }
-                }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden)
+                    .buttonStyle(.plain)
+                    .help(store.selectedTag.map { "Filtrer par tag : #\($0)" } ?? "Filtrer par tag")
+                    .accessibilityLabel("Filtrer par tag")
+                    .accessibilityValue(store.selectedTag.map { "#\($0)" } ?? "Tous les tags")
+                    if store.selectedTag != nil {
+                        Button { store.selectedTag = nil } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, height: 30).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain).help("Retirer le filtre de tag")
+                        .accessibilityLabel("Retirer le filtre de tag")
+                    }
+                }
+                .background(store.selectedTag == nil ? Color.clear : palette.selection, in: RoundedRectangle(cornerRadius: 6))
+                .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4)
             }
 
             if !store.sidebarTree.folders.isEmpty {

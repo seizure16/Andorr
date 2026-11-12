@@ -18,6 +18,13 @@ private struct CompletionEditor {
         view.setSelectedRange(NSRange(location: (source as NSString).length, length: 0))
     }
 
+    func newline() {
+        view.undoManager?.beginUndoGrouping()
+        view.insertNewline(nil)
+        view.breakUndoCoalescing()
+        view.undoManager?.endUndoGrouping()
+    }
+
     func input(_ text: String) {
         view.undoManager?.beginUndoGrouping()
         view.insertText(text, replacementRange: view.selectedRange())
@@ -27,6 +34,62 @@ private struct CompletionEditor {
 }
 
 final class MarkdownCompletionTests: XCTestCase {
+    @MainActor
+    func testCodeFenceCreatesCloserAndReturnPlacesCaretInsideInBothModes() {
+        for live in [true, false] {
+            let editor = CompletionEditor("😀\n", live: live)
+            editor.input("`"); editor.input("`"); editor.input("`")
+            XCTAssertEqual(editor.view.string, "😀\n``````")
+            editor.input("swift")
+            editor.newline()
+            XCTAssertEqual(editor.view.string, "😀\n```swift\n\n```")
+            XCTAssertEqual(editor.view.selectedRange().location, ("😀\n```swift\n" as NSString).length)
+            editor.input("let x = 1")
+            editor.newline()
+            XCTAssertEqual(editor.view.string, "😀\n```swift\nlet x = 1\n\n```")
+            editor.view.setSelectedRange(NSRange(location: (editor.view.string as NSString).length - 3, length: 0))
+            editor.input("`"); editor.input("`"); editor.input("`")
+            XCTAssertTrue(editor.view.string.hasSuffix("\n```"))
+            XCTAssertEqual(editor.view.selectedRange().location, (editor.view.string as NSString).length)
+            editor.newline()
+            editor.input("Après")
+            XCTAssertTrue(editor.view.string.hasSuffix("\n```\nAprès"))
+        }
+    }
+
+    @MainActor
+    func testCodeFenceUndoDeletionAndLiteralContexts() {
+        let editor = CompletionEditor()
+        editor.input("`"); editor.input("`"); editor.input("`")
+        editor.view.undo(nil)
+        XCTAssertEqual(editor.view.string, "``")
+        editor.view.redo(nil)
+        XCTAssertEqual(editor.view.string, "``````")
+        editor.view.setSelectedRange(NSRange(location: 3, length: 0))
+        editor.newline()
+        XCTAssertEqual(editor.view.string, "```\n\n```")
+        editor.view.undo(nil)
+        XCTAssertEqual(editor.view.string, "``````")
+        editor.view.setSelectedRange(NSRange(location: 3, length: 0))
+        editor.view.undoManager?.beginUndoGrouping()
+        editor.view.deleteBackward(nil)
+        editor.view.undoManager?.endUndoGrouping()
+        XCTAssertEqual(editor.view.string, "")
+
+        for source in ["texte ", "```\n", "~~~\n"] {
+            let literal = CompletionEditor(source)
+            literal.input("`"); literal.input("`"); literal.input("`")
+            XCTAssertEqual(literal.view.string, source + "```")
+        }
+        let pasted = CompletionEditor()
+        pasted.input("```")
+        XCTAssertEqual(pasted.view.string, "```")
+        let disabled = CompletionEditor()
+        disabled.view.automaticallyCloseMarkdown = false
+        disabled.input("`"); disabled.input("`"); disabled.input("`")
+        XCTAssertEqual(disabled.view.string, "```")
+    }
+
     @MainActor
     func testBoldPairPlacesCaretInsideStylesTextAndSkipsItsClosers() async {
         let editor = CompletionEditor()
