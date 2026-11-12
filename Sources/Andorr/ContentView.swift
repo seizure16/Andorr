@@ -106,8 +106,12 @@ private struct SidebarView: View {
             }
             .padding(.horizontal, 10).frame(height: 33)
             .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8)).padding(12)
-            filterRow("Toutes les notes", count: store.notes.count, active: !store.onlyToReview) { store.onlyToReview = false }
-            filterRow("À revoir", count: store.reviewCount, active: store.onlyToReview) { store.onlyToReview = true }
+            filterRow("Toutes les notes", count: store.notes.count, active: store.selectedStatus == nil) { store.selectedStatus = nil }
+            ForEach(store.availableStatuses) { status in
+                filterRow(status.title, count: store.statusCount(status), active: store.selectedStatus == status) {
+                    store.selectedStatus = status
+                }
+            }
 
             if !store.allTags.isEmpty {
                 HStack {
@@ -181,7 +185,7 @@ private struct SidebarView: View {
                     VStack(spacing: 8) {
                         Text(store.notes.isEmpty ? "Aucune note pour le moment" : "Aucune note correspondante").font(.callout)
                         if !store.notes.isEmpty {
-                            Button("Effacer les filtres") { store.search = ""; store.onlyToReview = false; store.selectedTag = nil }
+                            Button("Effacer les filtres") { store.search = ""; store.selectedStatus = nil; store.selectedTag = nil }
                                 .buttonStyle(.link)
                         }
                     }.foregroundStyle(.secondary).padding()

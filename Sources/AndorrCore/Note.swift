@@ -33,22 +33,22 @@ public struct Note: Identifiable, Sendable, Equatable {
 
 public struct NoteQuery: Sendable, Equatable {
     public var text: String
-    public var onlyToReview: Bool
+    public var status: ReviewStatus?
     public var tag: String?
 
-    public init(text: String = "", onlyToReview: Bool = false, tag: String? = nil) {
-        self.text = text; self.onlyToReview = onlyToReview; self.tag = tag
+    public init(text: String = "", status: ReviewStatus? = nil, tag: String? = nil) {
+        self.text = text; self.status = status; self.tag = tag
     }
 
     public var isActive: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || onlyToReview || tag != nil
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || status != nil || tag != nil
     }
 
     public func matches(_ note: Note) -> Bool {
         let matchingTag = tag.map { query in
             note.tags.contains { $0.compare(query, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
         } ?? true
-        return (!onlyToReview || note.status == .toReview)
+        return (status == nil || note.status == status)
         && matchingTag
         && (text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || (note.title + "\n" + note.body).range(of: text.trimmingCharacters(in: .whitespacesAndNewlines),

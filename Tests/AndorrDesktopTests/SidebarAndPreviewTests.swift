@@ -30,11 +30,39 @@ final class SidebarAndPreviewTests: XCTestCase {
             Note(id: "Maths/TD/B.md", title: "B", subject: "Maths/TD", body: "", status: .reviewed)
         ]
         XCTAssertTrue(store.sidebarTree.folderPaths.contains("Vide"))
-        store.onlyToReview = true
+        store.selectedStatus = .toReview
         XCTAssertEqual(store.sidebarTree.folderPaths, ["Maths", "Maths/Cours"])
-        store.onlyToReview = false
+        store.selectedStatus = nil
         XCTAssertTrue(store.sidebarTree.folderPaths.contains("Vide"))
         XCTAssertTrue(store.sidebarTree.folderPaths.contains("Maths/TD"))
+    }
+
+    @MainActor
+    func testStatusFiltersUseAssignedStatusesAndCombineWithSearchAndTags() {
+        let store = WorkspaceStore()
+        store.notes = [
+            Note(id: "A.md", title: "Algèbre", subject: "", body: "", tags: ["Examen"]),
+            Note(id: "B.md", title: "Algèbre", subject: "", body: "", status: .reviewed, tags: ["Examen"]),
+            Note(id: "C.md", title: "Analyse", subject: "", body: "", status: .reviewed)
+        ]
+        XCTAssertEqual(store.availableStatuses, [.inProgress, .reviewed])
+        XCTAssertEqual(store.statusCount(.reviewed), 2)
+        for status in ReviewStatus.allCases {
+            store.selectedStatus = status
+            XCTAssertEqual(store.visibleNotes, store.notes.filter { $0.status == status })
+        }
+        store.selectedStatus = .reviewed
+        store.search = "algebre"
+        store.selectedTag = "examen"
+        XCTAssertEqual(store.visibleNotes.map(\.id), ["B.md"])
+        // Keep an active filter accessible when its last matching note changes status.
+        store.notes[1].status = .inProgress
+        store.notes[2].status = .inProgress
+        XCTAssertEqual(store.availableStatuses, [.inProgress, .reviewed])
+        XCTAssertTrue(store.visibleNotes.isEmpty)
+        store.selectedStatus = nil
+        XCTAssertEqual(store.availableStatuses, [.inProgress])
+        XCTAssertEqual(store.visibleNotes.map(\.id), ["A.md", "B.md"])
     }
 
     func testPreviewAllowsSyntheticHTMLLoadAndLocalAnchors() {

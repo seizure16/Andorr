@@ -22,7 +22,7 @@ final class RepositoryTests: XCTestCase {
 
         let relaunched = makeRepository(root: root)
         let index = try await relaunched.scan()
-        let filtered = index.notes.filter(NoteQuery(onlyToReview: true).matches)
+        let filtered = index.notes.filter(NoteQuery(status: .toReview).matches)
         XCTAssertEqual(filtered.map(\.id), [path], "Index warnings: \(index.warnings)")
         XCTAssertEqual(filtered.first?.body, source)
         XCTAssertEqual(filtered.first?.subject, "Maths/Algèbre")

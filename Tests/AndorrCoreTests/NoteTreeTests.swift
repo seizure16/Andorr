@@ -37,7 +37,7 @@ final class NoteTreeTests: XCTestCase {
 
     func testFilteredTreeKeepsOnlyMatchingNotesAndTheirAncestors() {
         let notes = [note("Maths/Cours/A.md", status: .toReview), note("Maths/TD/B.md"), note("Info/C.md")]
-        let query = NoteQuery(onlyToReview: true)
+        let query = NoteQuery(status: .toReview)
         let tree = NoteTree(notes: notes.filter(query.matches))
         XCTAssertEqual(tree.folderPaths, ["Maths", "Maths/Cours"])
         XCTAssertEqual(tree.rows().map(\.id), ["folder:Maths", "folder:Maths/Cours", "note:Maths/Cours/A.md"])

@@ -10,7 +10,7 @@ final class WorkspaceStore {
     var draft: Note?
     private(set) var selectedNoteID: String?
     var search = ""
-    var onlyToReview = false
+    var selectedStatus: ReviewStatus?
     var selectedTag: String?
     var isBusy = false
     var isSaving = false
@@ -44,7 +44,7 @@ final class WorkspaceStore {
 
     var isDirty: Bool { revision != savedRevision }
     var canEdit: Bool { draft != nil && draft?.issue == nil && !isBusy }
-    var noteQuery: NoteQuery { NoteQuery(text: search, onlyToReview: onlyToReview, tag: selectedTag) }
+    var noteQuery: NoteQuery { NoteQuery(text: search, status: selectedStatus, tag: selectedTag) }
     var visibleNotes: [Note] {
         notes.filter(noteQuery.matches)
     }
@@ -52,7 +52,10 @@ final class WorkspaceStore {
         NoteTree(notes: visibleNotes, directories: noteQuery.isActive ? [] : subjects)
     }
     var allTags: [String] { Array(Set(notes.flatMap(\.tags))).sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
-    var reviewCount: Int { notes.filter { $0.status == .toReview }.count }
+    var availableStatuses: [ReviewStatus] {
+        ReviewStatus.allCases.filter { statusCount($0) > 0 || selectedStatus == $0 }
+    }
+    func statusCount(_ status: ReviewStatus) -> Int { notes.filter { $0.status == status }.count }
     func restore() async {
         guard !hasRestored else { return }; hasRestored = true
         guard preferences.object(forKey: PreferenceKeys.reopenFolder) as? Bool ?? true else { return }
@@ -86,7 +89,7 @@ final class WorkspaceStore {
             if !restoring { try access.adopt(url) }
             repository = next; root = url; notes = index.notes; subjects = index.subjects; warnings = index.warnings
             draft = nil; selectedNoteID = nil; expectedBytes = Data(); revision = 0; savedRevision = 0; saveError = nil
-            search = ""; onlyToReview = false; selectedTag = nil
+            search = ""; selectedStatus = nil; selectedTag = nil
             if let first = notes.first { install(try await next.load(id: first.id), applyOpeningMode: true) }
         } catch { errorMessage = error.localizedDescription }
     }
@@ -187,7 +190,7 @@ final class WorkspaceStore {
         do {
             let created = try await repository.create(title: title, subject: subject)
             install(created); updateIndex(created.note)
-            search = ""; onlyToReview = false; selectedTag = nil; preview = false
+            search = ""; selectedStatus = nil; selectedTag = nil; preview = false
             return true
         } catch { errorMessage = error.localizedDescription; return false }
     }

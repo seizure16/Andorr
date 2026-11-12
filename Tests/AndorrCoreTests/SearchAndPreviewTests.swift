@@ -8,7 +8,7 @@ final class SearchAndPreviewTests: XCTestCase {
             Note(id: "Info/B.md", title: "Complexité", subject: "Info", body: "Définition d’un algorithme", status: .toReview, tags: ["examen"]),
             Note(id: "Maths/C.md", title: "Autre", subject: "Maths", body: "Définition", status: .reviewed, tags: ["examen"])
         ]
-        XCTAssertEqual(notes.filter(NoteQuery(text: "DEFINITION", onlyToReview: true, tag: "examen").matches).count, 2)
+        XCTAssertEqual(notes.filter(NoteQuery(text: "DEFINITION", status: .toReview, tag: "examen").matches).count, 2)
         XCTAssertEqual(notes.filter(NoteQuery(text: "algebre").matches).map(\.id), ["Maths/A.md"])
     }
 

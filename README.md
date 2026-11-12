@@ -22,6 +22,12 @@ Le projet active l’App Sandbox et l’accès en lecture/écriture aux dossiers
 
 L’explorateur affiche une arborescence de dossiers imbriqués, avec indentation, dossiers avant les notes et notes racine en bas de la liste. Les lignes de dossiers sont cliquables et le bouton global permet de tout replier ou déplier avec animation. Après remplacement de l’application, la quitter puis la relancer pour appliquer les nouvelles autorisations WebKit.
 
+## Icône de l’application
+
+Le document Icon Composer **`icon.icon`** est la source de l’icône. Il est référencé dans les ressources de la cible Andorr ; le réglage **App Icon** (`ASSETCATALOG_COMPILER_APPICON_NAME`) vaut **`icon`**, le nom du document sans extension. Modifier ce document dans Icon Composer, l’enregistrer puis reconstruire l’application pour appliquer une nouvelle version.
+
+Le script `Scripts/build-app.sh` compile aussi ce document avec l’outil Apple `actool`, copie les ressources produites dans le bundle et fusionne leurs métadonnées avant la signature. Une erreur de compilation de l’icône arrête la construction avant de remplacer l’application existante. Les outils fournis avec Xcode doivent pouvoir ouvrir et exporter le document `.icon`.
+
 ## Premier essai
 
 Utiliser une **copie** de `Examples/Cours S3` si vous souhaitez conserver les exemples intacts : l’application modifie les fichiers choisis.
@@ -43,7 +49,7 @@ Essayer ensuite l’édition, l’aperçu, les tags, la recherche sans accents e
 - Édition Markdown brut avec NSTextView, premier aperçu en direct et aperçu de lecture ; sauvegarde après 500 ms d’inactivité.
 - Statuts et tags enregistrés immédiatement ; affichage indépendant dans la barre latérale.
 - Recherche dans le titre (nom de fichier) et le corps, insensible à la casse et aux accents.
-- Filtre transversal **À revoir**, filtre par tag et compteurs globaux. Les filtres conservent les dossiers parents des résultats et les ouvrent automatiquement ; leur fermeture temporaire ne modifie pas les dossiers ouverts ou repliés avant le filtre.
+- Filtres transversaux par statut (**En cours**, **À revoir**, **Révisé**) pour les statuts affectés aux notes, filtre par tag et compteurs globaux. Les filtres conservent les dossiers parents des résultats et les ouvrent automatiquement ; leur fermeture temporaire ne modifie pas les dossiers ouverts ou repliés avant le filtre.
 - Annuler avec **⌘Z** et rétablir avec **⇧⌘Z** dans l’éditeur ; historique propre à la note courante, transmis à la sauvegarde automatique.
 - Sauvegarde normale silencieuse, sans texte changeant ni animation pendant la frappe ; les erreurs restent visibles.
 - Vidage des modifications en attente avant navigation, fermeture et sortie.
